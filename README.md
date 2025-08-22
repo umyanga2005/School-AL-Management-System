@@ -1,71 +1,131 @@
-# Getting Started with Create React App
+# 🎓 SCC A/L Attendance Management System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![React](https://img.shields.io/badge/Frontend-React-blue?logo=react)
+![Node.js](https://img.shields.io/badge/Backend-Node.js-green?logo=node.js)
+![Express](https://img.shields.io/badge/API-Express-lightgrey?logo=express)
+![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-blue?logo=postgresql)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Netlify](https://img.shields.io/badge/Deploy-Netlify-brightgreen?logo=netlify)
+![Render](https://img.shields.io/badge/Backend-Render-purple?logo=render)
 
-## Available Scripts
+A modern, role-based **Attendance Management System** built with **React** for **SCC A/L Art Section**.  
+This system allows **Teachers, Coordinators, and Admins** to manage daily student attendance records efficiently with role-specific dashboards.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## 🚀 Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 🔑 Authentication & Security
+- Secure **login system** with role-based access control.
+- Session persistence with **JWT authentication**.
+- Temporary password handling with **change password** flow.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 👩‍🏫 Teacher Dashboard
+- Record **daily attendance** (boys, girls, total).
+- Auto-set date with **Sri Lanka time zone** support.
+- View up to **20 recent records**.
+- Data saved securely in the backend.
 
-### `npm test`
+### 📊 Coordinator Dashboard
+- Filter attendance by **Year, Month, and Class**.
+- View detailed records with teacher names.
+- Statistics: **Total Records, Students, and Averages**.
+- Export-ready structured data.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 🛠️ Admin Dashboard
+- Add and manage **Teachers** with assigned classes.
+- Edit teacher’s **assigned class** dynamically.
+- Add new **Coordinators** with auto-generated temporary passwords.
+- System overview with **real-time statistics**:
+  - Total Teachers
+  - Total Attendance Records
+  - Total Students Recorded
+  - Classes Available
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 🖼️ Screenshots
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+> _(Optional: Add screenshots of login, teacher dashboard, coordinator dashboard, and admin dashboard)_
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+## 🛠️ Tech Stack
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- **Frontend:** React, Lucide Icons, CSS  
+- **Backend API:** Node.js + Express (Hosted on [Render](https://render.com))  
+- **Database:** PostgreSQL (via backend API)  
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 📂 Project Structure
+```
+src/
+├── App.jsx       # Main application with all role-based dashboards
+├── App.css       # Styling for all components
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+---
 
-## Learn More
+## ⚙️ Installation & Setup
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/umyanga2005/School-AL-Management-System.git
+   cd scc-al-attendance
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-### Code Splitting
+3. **Run locally**
+   ```bash
+   npm start
+   ```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+4. **Build for production**
+   ```bash
+   npm run build
+   ```
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 👥 User Roles & Demo Credentials
 
-### Making a Progressive Web App
+### 👩‍🏫 Teacher
+- Role: Submit daily attendance for assigned class.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### 📊 Coordinator
+- Role: View & filter attendance reports.
+- **Demo:**  
+  - Username: `coordinator`  
+  - Password: `coordinator`
 
-### Advanced Configuration
+### 🛠️ Admin
+- Role: Manage teachers, coordinators, and system overview.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+---
 
-### Deployment
+## 🌍 Deployment
+- Frontend: Deployable on **Netlify**, **Vercel**, or any React-compatible hosting.  
+- Backend: Hosted on **Render**.  
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+---
 
-### `npm run build` fails to minify
+## 📌 Roadmap / Future Improvements
+- ✅ Export attendance data to **Excel / PDF**.  
+- ✅ Mobile-friendly responsive UI.  
+- 🔲 Notifications for missing attendance.  
+- 🔲 Advanced analytics with charts.  
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-# School-AL-Management-System
+---
+
+## 🤝 Contributing
+Pull requests are welcome. For significant changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## 📜 License
+This project is licensed under the **MIT License**.
