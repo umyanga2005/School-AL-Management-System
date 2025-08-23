@@ -1,3 +1,4 @@
+// src/services/api.js (updated with new endpoints)
 class ApiService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL;
@@ -9,7 +10,11 @@ class ApiService {
         changePassword: `${this.baseURL}/auth/change-password`
       },
       users: `${this.baseURL}/users`,
-      attendance: `${this.baseURL}/attendance`
+      attendance: `${this.baseURL}/attendance`,
+      students: `${this.baseURL}/students`,
+      subjects: `${this.baseURL}/subjects`,
+      terms: `${this.baseURL}/terms`,
+      marks: `${this.baseURL}/marks`
     };
   }
 
@@ -104,6 +109,153 @@ class ApiService {
       method: 'POST',
       headers: this.getAuthHeaders(token),
       body: JSON.stringify(attendanceData)
+    });
+  }
+
+  // New methods for student management
+  async getStudents(token, classFilter = '') {
+    const url = classFilter 
+      ? `${this.endpoints.students}?class=${classFilter}`
+      : this.endpoints.students;
+    
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async createStudent(token, studentData) {
+    return this.request(this.endpoints.students, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(studentData)
+    });
+  }
+
+  async updateStudent(token, studentId, studentData) {
+    return this.request(`${this.endpoints.students}/${studentId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(studentData)
+    });
+  }
+
+  async deleteStudent(token, studentId) {
+    return this.request(`${this.endpoints.students}/${studentId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async promoteStudents(token, promotionData) {
+    return this.request(`${this.endpoints.students}/promote-class`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(promotionData)
+    });
+  }
+
+  // New methods for subject management
+  async getSubjects(token) {
+    return this.request(this.endpoints.subjects, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async createSubject(token, subjectData) {
+    return this.request(this.endpoints.subjects, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(subjectData)
+    });
+  }
+
+  async updateSubject(token, subjectId, subjectData) {
+    return this.request(`${this.endpoints.subjects}/${subjectId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(subjectData)
+    });
+  }
+
+  async getStudentSubjects(token, studentId, academicYear) {
+    const url = academicYear
+      ? `${this.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
+      : `${this.endpoints.subjects}/students/${studentId}/subjects`;
+    
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async assignStudentSubjects(token, studentId, assignmentData) {
+    return this.request(`${this.endpoints.subjects}/students/${studentId}/subjects`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(assignmentData)
+    });
+  }
+
+  // New methods for term management
+  async getTerms(token) {
+    return this.request(this.endpoints.terms, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async getCurrentTerm(token) {
+    return this.request(`${this.endpoints.terms}/current`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async createTerm(token, termData) {
+    return this.request(this.endpoints.terms, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(termData)
+    });
+  }
+
+  // New methods for marks management
+  async getMarks(token, filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+
+    const url = `${this.endpoints.marks}?${params.toString()}`;
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async enterMarks(token, marksData) {
+    return this.request(this.endpoints.marks, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(marksData)
+    });
+  }
+
+  async updateMarks(token, marksId, marksData) {
+    return this.request(`${this.endpoints.marks}/${marksId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(marksData)
+    });
+  }
+
+  async getStudentTermMarks(token, studentId, termId) {
+    return this.request(`${this.endpoints.marks}/student/${studentId}/term/${termId}`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async bulkEnterMarks(token, bulkData) {
+    return this.request(`${this.endpoints.marks}/bulk-entry`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(bulkData)
     });
   }
 }

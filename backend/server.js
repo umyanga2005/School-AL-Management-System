@@ -22,10 +22,20 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const attendanceRoutes = require('./routes/attendance');
 
+// Import new routes
+const studentRoutes = require('./routes/students');
+const subjectRoutes = require('./routes/subjects');
+const termRoutes = require('./routes/terms');
+const marksRoutes = require('./routes/marks');
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/subjects', subjectRoutes);
+app.use('/api/terms', termRoutes);
+app.use('/api/marks', marksRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

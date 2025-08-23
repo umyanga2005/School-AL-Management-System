@@ -2,95 +2,104 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// Import components
+// Auth
 import LoginForm from './components/auth/LoginForm';
 import ChangePasswordForm from './components/auth/ChangePasswordForm';
+
+// Layout
 import Header from './components/layout/Header';
+
+// Dashboards
 import TeacherDashboard from './components/dashboards/TeacherDashboard';
 import CoordinatorDashboard from './components/dashboards/CoordinatorDashboard';
 import AdminDashboard from './components/dashboards/AdminDashboard';
 
-// Import services and utilities
-import apiService from './services/api';
-import { sessionStorage } from './utils';
+// Student Management
+import StudentList from './components/students/StudentList';
+import StudentDetails from './components/students/StudentDetails';
 
-const AttendanceApp = () => {
+// Subject Management
+import SubjectList from './components/subjects/SubjectList';
+
+// Term Management
+import TermManagement from './components/terms/TermManagement';
+
+// Marks Management
+import MarksEntry from './components/marks/MarksEntry';
+
+// Reports
+import ClassReport from './components/reports/ClassReport';
+
+// Utils
+import apiService from './services/api';
+import { sessionStorage, CLASSES } from './utils';
+
+const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Session persistence - Load user from localStorage on app start
+  const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [selectedClass, setSelectedClass] = useState(CLASSES[0] || '');
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
+  // -------------------- Session Persistence --------------------
   useEffect(() => {
     const savedSession = sessionStorage.getUser();
-    
+
     if (savedSession) {
       const { user, token } = savedSession;
       
-      // Verify token is still valid
+      // Store token in localStorage for API calls
+      localStorage.setItem('token', token);
+      
       apiService.verifyToken(token)
         .then(result => {
           if (result.success) {
-            setCurrentUser({...user, token});
+            setCurrentUser({ ...user, token });
             setCurrentView(user.role);
-            console.log('Session restored for:', user.username);
           } else {
-            // Token invalid, clear storage
             sessionStorage.clearUser();
-            console.log('Invalid session, cleared storage');
+            localStorage.removeItem('token');
           }
         })
         .catch(() => {
-          // Error verifying, clear storage
           sessionStorage.clearUser();
-          console.log('Error verifying session, cleared storage');
+          localStorage.removeItem('token');
         });
     }
   }, []);
 
-  // Save user to localStorage whenever currentUser changes
   useEffect(() => {
     if (currentUser) {
       sessionStorage.saveUser(currentUser);
+      localStorage.setItem('token', currentUser.token);
     } else {
       sessionStorage.clearUser();
+      localStorage.removeItem('token');
     }
   }, [currentUser]);
 
-  // Fetch data when user logs in
+  // -------------------- Fetch Data --------------------
   useEffect(() => {
     if (!currentUser) return;
 
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Admin: fetch teachers
         if (currentUser.role === 'admin') {
           const result = await apiService.getUsers(currentUser.token);
-          if (result.success) {
-            setTeachers(result.data.users || []);
-          }
+          if (result.success) setTeachers(result.data.users || []);
         }
 
-        // Fetch attendance records
         const attendanceResult = await apiService.getAttendance(currentUser.token);
         if (attendanceResult.success) {
-          console.log('📊 Fetched attendance records:', attendanceResult.data.records?.length || 0);
-          console.log('👤 Current user ID:', currentUser.id, 'Type:', typeof currentUser.id);
-          
-          // Debug: Log sample records to understand data structure
-          if (attendanceResult.data.records && attendanceResult.data.records.length > 0) {
-            console.log('📋 Sample attendance record:', JSON.stringify(attendanceResult.data.records[0], null, 2));
-          }
-          
           setAttendanceRecords(attendanceResult.data.records || []);
-        } else {
-          console.error('Failed to fetch attendance records:', attendanceResult.error);
         }
       } catch (err) {
-        console.error('Fetch error:', err);
-        // Don't show alert for data fetch failures, just log them
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -99,92 +108,212 @@ const AttendanceApp = () => {
     fetchData();
   }, [currentUser]);
 
-  // Handle login success
+  // -------------------- Handlers --------------------
   const handleLoginSuccess = (user, view) => {
     setCurrentUser(user);
     setCurrentView(view);
+    setActiveMenu('dashboard');
   };
 
-  // Handle password change success
   const handlePasswordChanged = (updatedUser, view) => {
     setCurrentUser(updatedUser);
     setCurrentView(view);
+    setActiveMenu('dashboard');
   };
 
-  // Handle logout
   const handleLogout = () => {
     setCurrentUser(null);
     setCurrentView('login');
     setAttendanceRecords([]);
     setTeachers([]);
+    setActiveMenu('dashboard');
+    setSelectedStudent(null);
+    sessionStorage.clearUser();
+    localStorage.removeItem('token');
   };
 
-  // Handle attendance records update
   const handleAttendanceUpdate = (newRecords) => {
     setAttendanceRecords(newRecords);
+  };
+
+  const handleStudentSelect = (student) => {
+    setSelectedStudent(student);
+  };
+
+  const handleStudentUpdate = () => {
+    setSelectedStudent(null);
+    // Refresh student data if needed
+  };
+
+  // -------------------- Sidebar Menu --------------------
+  const renderSidebar = () => {
+    if (!currentUser) return null;
+
+    let menuItems = [{ key: 'dashboard', label: 'Dashboard', icon: '📊' }];
+
+    // Admin menu items
+    if (currentUser.role === 'admin') {
+      menuItems = [
+        ...menuItems,
+        { key: 'students', label: 'Students', icon: '👨‍🎓' },
+        { key: 'subjects', label: 'Subjects', icon: '📚' },
+        { key: 'terms', label: 'Terms', icon: '📅' },
+        { key: 'marks', label: 'Marks', icon: '📝' },
+        { key: 'reports', label: 'Reports', icon: '📈' },
+      ];
+    }
+
+    // Teacher menu items
+    if (currentUser.role === 'teacher') {
+      menuItems = [
+        ...menuItems,
+        { key: 'marks', label: 'Marks Entry', icon: '📝' },
+        { key: 'attendance', label: 'Attendance', icon: '✅' },
+      ];
+    }
+
+    // Coordinator menu items
+    if (currentUser.role === 'coordinator') {
+      menuItems = [
+        ...menuItems,
+        { key: 'reports', label: 'Reports', icon: '📈' },
+        { key: 'attendance', label: 'Attendance', icon: '✅' },
+      ];
+    }
+
+    return (
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <h2>Menu</h2>
+          {CLASSES.length > 0 && (
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="class-dropdown"
+            >
+              {CLASSES.map(cls => (
+                <option key={cls} value={cls}>{cls}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="sidebar-menu">
+          {menuItems.map(item => (
+            <button
+              key={item.key}
+              className={activeMenu === item.key ? 'active' : ''}
+              onClick={() => setActiveMenu(item.key)}
+            >
+              <span className="menu-icon">{item.icon}</span>
+              <span className="menu-label">{item.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <span className="user-role">{currentUser.role}</span>
+            <span className="user-name">{currentUser.name || currentUser.username}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // -------------------- Render Active Page --------------------
+  const renderActivePage = () => {
+    const commonProps = { 
+      currentUser, 
+      selectedClass,
+      token: currentUser?.token 
+    };
+
+    switch (activeMenu) {
+      case 'students':
+        return <StudentList onStudentSelect={handleStudentSelect} />;
+      case 'subjects':
+        return <SubjectList />;
+      case 'terms':
+        return <TermManagement />;
+      case 'marks':
+        return <MarksEntry />;
+      case 'reports':
+        return <ClassReport {...commonProps} />;
+      case 'attendance':
+        // This would be your existing attendance component
+        return currentUser.role === 'teacher' ? (
+          <TeacherDashboard
+            currentUser={currentUser}
+            attendanceRecords={attendanceRecords}
+            onAttendanceUpdate={handleAttendanceUpdate}
+            selectedClass={selectedClass}
+          />
+        ) : (
+          <CoordinatorDashboard
+            attendanceRecords={attendanceRecords}
+            selectedClass={selectedClass}
+          />
+        );
+      default:
+        if (currentUser.role === 'admin') return (
+          <AdminDashboard
+            currentUser={currentUser}
+            teachers={teachers}
+            setTeachers={setTeachers}
+            attendanceRecords={attendanceRecords}
+            selectedClass={selectedClass}
+          />
+        );
+        if (currentUser.role === 'teacher') return (
+          <TeacherDashboard
+            currentUser={currentUser}
+            attendanceRecords={attendanceRecords}
+            onAttendanceUpdate={handleAttendanceUpdate}
+            selectedClass={selectedClass}
+          />
+        );
+        if (currentUser.role === 'coordinator') return (
+          <CoordinatorDashboard
+            attendanceRecords={attendanceRecords}
+            selectedClass={selectedClass}
+          />
+        );
+        return null;
+    }
   };
 
   // -------------------- Main Render --------------------
   return (
     <div className="app-container">
       {currentView === 'login' && (
-        <LoginForm 
+        <LoginForm
           onLoginSuccess={handleLoginSuccess}
           loading={loading}
           setLoading={setLoading}
         />
       )}
-      
+
       {currentView === 'change-password' && (
-        <ChangePasswordForm 
+        <ChangePasswordForm
           currentUser={currentUser}
           onPasswordChanged={handlePasswordChanged}
         />
       )}
-      
-      {currentUser && currentView === 'teacher' && (
+
+      {currentUser && currentView !== 'login' && currentView !== 'change-password' && (
         <>
-          <Header 
-            currentUser={currentUser}
-            onLogout={handleLogout}
-          />
-          <div className="main-content">
-            <TeacherDashboard 
-              currentUser={currentUser}
-              attendanceRecords={attendanceRecords}
-              onAttendanceUpdate={handleAttendanceUpdate}
-            />
-          </div>
-        </>
-      )}
-      
-      {currentUser && currentView === 'coordinator' && (
-        <>
-          <Header 
-            currentUser={currentUser}
-            onLogout={handleLogout}
-          />
-          <div className="main-content">
-            <CoordinatorDashboard 
-              attendanceRecords={attendanceRecords}
-            />
-          </div>
-        </>
-      )}
-      
-      {currentUser && currentView === 'admin' && (
-        <>
-          <Header 
-            currentUser={currentUser}
-            onLogout={handleLogout}
-          />
-          <div className="main-content">
-            <AdminDashboard 
-              currentUser={currentUser}
-              teachers={teachers}
-              setTeachers={setTeachers}
-              attendanceRecords={attendanceRecords}
-            />
+          <Header currentUser={currentUser} onLogout={handleLogout} />
+          <div className="dashboard-container">
+            {renderSidebar()}
+            <div className="main-content">
+              {renderActivePage()}
+              {selectedStudent && (
+                <StudentDetails
+                  student={selectedStudent}
+                  onClose={() => setSelectedStudent(null)}
+                  onUpdate={handleStudentUpdate}
+                />
+              )}
+            </div>
           </div>
         </>
       )}
@@ -192,4 +321,4 @@ const AttendanceApp = () => {
   );
 };
 
-export default AttendanceApp;
+export default App;
