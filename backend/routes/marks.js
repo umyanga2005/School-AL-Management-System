@@ -1,15 +1,48 @@
-// backend/routes/marks.js
+// backend/routes/marks.js - FIXED VERSION
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
+
 // Authentication middleware
 const requireAuth = async (req, res, next) => {
-  // Implementation from auth.js
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authorization header missing' 
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      id: parseInt(payload.userId),
+      username: payload.username,
+      role: payload.role,
+      assignedClass: payload.assignedClass
+    };
+    
+    next();
+  } catch (err) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Invalid or expired token' 
+    });
+  }
 };
 
 const requireTeacherOrCoordinator = (req, res, next) => {
-  // Implementation from auth.js
+  if (req.user.role !== 'teacher' && req.user.role !== 'coordinator') {
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Teacher or coordinator access required' 
+    });
+  }
+  next();
 };
 
 // GET /api/marks - Get marks with filters
@@ -66,12 +99,10 @@ router.post('/', requireAuth, requireTeacherOrCoordinator, async (req, res) => {
   try {
     const { student_id, subject_id, term_id, marks } = req.body;
     
-    // Validate marks (0-100)
     if (marks < 0 || marks > 100) {
       return res.status(400).json({ success: false, error: 'Marks must be between 0 and 100' });
     }
     
-    // Check if marks already exist for this student, subject, and term
     const existingMarks = await db.execute(
       'SELECT id FROM marks WHERE student_id = $1 AND subject_id = $2 AND term_id = $3',
       [student_id, subject_id, term_id]
@@ -106,7 +137,6 @@ router.put('/:id', requireAuth, requireTeacherOrCoordinator, async (req, res) =>
     const { id } = req.params;
     const { marks } = req.body;
     
-    // Validate marks (0-100)
     if (marks < 0 || marks > 100) {
       return res.status(400).json({ success: false, error: 'Marks must be between 0 and 100' });
     }
@@ -130,7 +160,7 @@ router.put('/:id', requireAuth, requireTeacherOrCoordinator, async (req, res) =>
   }
 });
 
-// GET /api/marks/student/:id/term/:termId - Get marks for a specific student and term
+// GET /api/marks/student/:id/term/:termId
 router.get('/student/:id/term/:termId', requireAuth, async (req, res) => {
   try {
     const { id, termId } = req.params;
@@ -162,7 +192,6 @@ router.post('/bulk-entry', requireAuth, requireTeacherOrCoordinator, async (req,
       return res.status(400).json({ success: false, error: 'Marks data and term ID are required' });
     }
     
-    // Prepare data for insertion
     const insertData = marksData.filter(item => 
       item.student_id && item.subject_id && item.marks !== undefined && item.marks !== null
     );
@@ -171,7 +200,7 @@ router.post('/bulk-entry', requireAuth, requireTeacherOrCoordinator, async (req,
       return res.status(400).json({ success: false, error: 'No valid marks data to insert' });
     }
     
-    // Check for existing marks to avoid duplicates
+    // Check for duplicates
     const existingMarks = await db.execute(`
       SELECT student_id, subject_id FROM marks 
       WHERE term_id = $1 AND (student_id, subject_id) IN (${
@@ -179,7 +208,6 @@ router.post('/bulk-entry', requireAuth, requireTeacherOrCoordinator, async (req,
       })
     `, [term_id, ...insertData.flatMap(item => [item.student_id, item.subject_id])]);
     
-    // Filter out duplicates
     const existingSet = new Set(
       existingMarks.rows.map(row => `${row.student_id}-${row.subject_id}`)
     );

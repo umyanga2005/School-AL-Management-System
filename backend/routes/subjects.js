@@ -1,15 +1,48 @@
-// backend/routes/subjects.js
+// backend/routes/subjects.js - FIXED VERSION
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
+
 // Authentication middleware
 const requireAuth = async (req, res, next) => {
-  // Implementation from auth.js
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authorization header missing' 
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      id: parseInt(payload.userId),
+      username: payload.username,
+      role: payload.role,
+      assignedClass: payload.assignedClass
+    };
+    
+    next();
+  } catch (err) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Invalid or expired token' 
+    });
+  }
 };
 
 const requireAdmin = (req, res, next) => {
-  // Implementation from auth.js
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Admin access required' 
+    });
+  }
+  next();
 };
 
 // GET /api/subjects - Get all subjects
@@ -72,7 +105,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/students/:id/subjects - Get subjects assigned to a student
+// GET /api/subjects/students/:id/subjects - Get subjects assigned to a student
 router.get('/students/:id/subjects', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -102,7 +135,7 @@ router.get('/students/:id/subjects', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/students/:id/subjects - Assign subjects to a student
+// POST /api/subjects/students/:id/subjects - Assign subjects to a student
 router.post('/students/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -139,6 +172,39 @@ router.post('/students/:id/subjects', requireAuth, requireAdmin, async (req, res
       message: `Assigned ${result.rows.length} subjects to student`,
       studentSubjects: result.rows 
     });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/students/:id/subjects - Assign subjects to student
+router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subject_ids } = req.body;
+    
+    // First, verify the student exists
+    const studentCheck = await db.execute('SELECT id FROM students WHERE id = $1 AND status = \'active\'', [id]);
+    if (studentCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+    
+    // Remove existing subject assignments
+    await db.execute('DELETE FROM student_subjects WHERE student_id = $1', [id]);
+    
+    // Insert new subject assignments
+    if (subject_ids && subject_ids.length > 0) {
+      const assignments = subject_ids.map(subject_id => [id, subject_id]);
+      const sql = `
+        INSERT INTO student_subjects (student_id, subject_id)
+        VALUES ${assignments.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ')}
+      `;
+      
+      const flatParams = assignments.flat();
+      await db.execute(sql, flatParams);
+    }
+    
+    res.json({ success: true, message: 'Subjects assigned successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

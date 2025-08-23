@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { studentApi } from '../../services/studentApi';
 import StudentSubjects from './StudentSubjects';
+import StudentForm from './StudentForm';
+
 
 const StudentDetails = ({ student, onClose, onUpdate }) => {
   const [activeTab, setActiveTab] = useState('details');

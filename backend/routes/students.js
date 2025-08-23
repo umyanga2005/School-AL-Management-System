@@ -1,19 +1,58 @@
-// backend/routes/students.js
+// backend/routes/students.js - FIXED VERSION
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
+
 // Authentication middleware
 const requireAuth = async (req, res, next) => {
-  // Implementation from auth.js
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authorization header missing' 
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      id: parseInt(payload.userId),
+      username: payload.username,
+      role: payload.role,
+      assignedClass: payload.assignedClass
+    };
+    
+    next();
+  } catch (err) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Invalid or expired token' 
+    });
+  }
 };
 
 const requireAdmin = (req, res, next) => {
-  // Implementation from auth.js
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Admin access required' 
+    });
+  }
+  next();
 };
 
 const requireTeacherOrCoordinator = (req, res, next) => {
-  // Implementation from auth.js
+  if (req.user.role !== 'teacher' && req.user.role !== 'coordinator') {
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Teacher or coordinator access required' 
+    });
+  }
+  next();
 };
 
 // GET /api/students - Get all students
@@ -113,7 +152,7 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
     
     // Soft delete by setting status to inactive
     const result = await db.execute(
-      'UPDATE students SET status = "inactive", updated_at = NOW() WHERE id = $1 RETURNING id',
+      'UPDATE students SET status = \'inactive\', updated_at = NOW() WHERE id = $1 RETURNING id',
       [id]
     );
     

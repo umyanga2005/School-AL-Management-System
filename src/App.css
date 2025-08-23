@@ -954,3 +954,85 @@ select:focus {
     background: white;
   }
 }
+
+/* Subject selection styles */
+.subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.subject-checkbox {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.subject-checkbox:hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
+}
+
+.subject-checkbox input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.subject-name {
+  font-weight: 500;
+  color: #374151;
+}
+
+.subject-stream {
+  margin-left: 8px;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Common subjects styling */
+.common-subject {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.common-subject:hover {
+  background: #dcfce7;
+  border-color: #4ade80;
+}
+
+/* Error states */
+.error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+}
+
+/* Loading states */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.loading-spinner {
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

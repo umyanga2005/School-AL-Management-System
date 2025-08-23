@@ -1,5 +1,7 @@
 // App.jsx
 import React, { useState, useEffect } from 'react';
+
+// Styles
 import './App.css';
 
 // Auth
@@ -17,6 +19,7 @@ import AdminDashboard from './components/dashboards/AdminDashboard';
 // Student Management
 import StudentList from './components/students/StudentList';
 import StudentDetails from './components/students/StudentDetails';
+
 
 // Subject Management
 import SubjectList from './components/subjects/SubjectList';
@@ -44,6 +47,7 @@ const App = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [selectedClass, setSelectedClass] = useState(CLASSES[0] || '');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // -------------------- Session Persistence --------------------
   useEffect(() => {
@@ -145,6 +149,11 @@ const App = () => {
     // Refresh student data if needed
   };
 
+  const handleMenuClick = (menuKey) => {
+    setActiveMenu(menuKey);
+    setSidebarOpen(false); // Close mobile sidebar when menu item is clicked
+  };
+
   // -------------------- Sidebar Menu --------------------
   const renderSidebar = () => {
     if (!currentUser) return null;
@@ -182,40 +191,94 @@ const App = () => {
     }
 
     return (
-      <div className="sidebar">
-        <div className="sidebar-header">
-          <h2>Menu</h2>
-          {CLASSES.length > 0 && (
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="class-dropdown"
-            >
-              {CLASSES.map(cls => (
-                <option key={cls} value={cls}>{cls}</option>
+      <>
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 lg:hidden">
+            <div 
+              className="fixed inset-0 bg-gray-600 bg-opacity-75"
+              onClick={() => setSidebarOpen(false)}
+            ></div>
+          </div>
+        )}
+
+        {/* Sidebar */}
+        <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+          <div className="flex flex-col h-full">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">Menu</h2>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Class Selector */}
+            {CLASSES.length > 0 && (
+              <div className="p-4 border-b border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Class
+                </label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {CLASSES.map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Menu Items */}
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+              {menuItems.map(item => (
+                <button
+                  key={item.key}
+                  className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors duration-200 ${
+                    activeMenu === item.key 
+                      ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500' 
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  onClick={() => handleMenuClick(item.key)}
+                >
+                  <span className="text-xl mr-3">{item.icon}</span>
+                  <span className="font-medium">{item.label}</span>
+                </button>
               ))}
-            </select>
-          )}
-        </div>
-        <div className="sidebar-menu">
-          {menuItems.map(item => (
-            <button
-              key={item.key}
-              className={activeMenu === item.key ? 'active' : ''}
-              onClick={() => setActiveMenu(item.key)}
-            >
-              <span className="menu-icon">{item.icon}</span>
-              <span className="menu-label">{item.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className="sidebar-footer">
-          <div className="user-info">
-            <span className="user-role">{currentUser.role}</span>
-            <span className="user-name">{currentUser.name || currentUser.username}</span>
+            </nav>
+
+            {/* User Info Footer */}
+            <div className="p-4 border-t border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                    <span className="text-sm font-medium text-blue-600">
+                      {(currentUser.name || currentUser.username)?.charAt(0)?.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {currentUser.name || currentUser.username}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {currentUser.role}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   };
 
@@ -283,29 +346,41 @@ const App = () => {
 
   // -------------------- Main Render --------------------
   return (
-    <div className="app-container">
+    <div className="min-h-screen bg-gray-50">
       {currentView === 'login' && (
-        <LoginForm
-          onLoginSuccess={handleLoginSuccess}
-          loading={loading}
-          setLoading={setLoading}
-        />
+        <div className="min-h-screen flex items-center justify-center">
+          <LoginForm
+            onLoginSuccess={handleLoginSuccess}
+            loading={loading}
+            setLoading={setLoading}
+          />
+        </div>
       )}
 
       {currentView === 'change-password' && (
-        <ChangePasswordForm
-          currentUser={currentUser}
-          onPasswordChanged={handlePasswordChanged}
-        />
+        <div className="min-h-screen flex items-center justify-center">
+          <ChangePasswordForm
+            currentUser={currentUser}
+            onPasswordChanged={handlePasswordChanged}
+          />
+        </div>
       )}
 
       {currentUser && currentView !== 'login' && currentView !== 'change-password' && (
         <>
-          <Header currentUser={currentUser} onLogout={handleLogout} />
-          <div className="dashboard-container">
+          <Header 
+            currentUser={currentUser} 
+            onLogout={handleLogout}
+            onMenuClick={() => setSidebarOpen(true)}
+          />
+          <div className="flex h-screen pt-16"> {/* pt-16 to account for fixed header */}
             {renderSidebar()}
-            <div className="main-content">
-              {renderActivePage()}
+            <div className="flex-1 lg:ml-0 overflow-hidden">
+              <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
+                <div className="container mx-auto px-4 py-6">
+                  {renderActivePage()}
+                </div>
+              </main>
               {selectedStudent && (
                 <StudentDetails
                   student={selectedStudent}

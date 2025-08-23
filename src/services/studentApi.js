@@ -39,8 +39,13 @@ export const studentApi = {
     return apiService.getStudentSubjects(token, studentId, academicYear);
   },
 
+  // Add this method to the studentApi object:
   assignStudentSubjects: (studentId, assignmentData) => {
     const token = localStorage.getItem('token');
-    return apiService.assignStudentSubjects(token, studentId, assignmentData);
-  }
+    return apiService.request(`${apiService.endpoints.students}/${studentId}/subjects`, {
+      method: 'POST',
+      headers: apiService.getAuthHeaders(token),
+      body: JSON.stringify(assignmentData)
+    });
+  },
 };
