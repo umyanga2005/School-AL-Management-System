@@ -1,4 +1,4 @@
-// src/components/students/StudentForm.jsx - COMPLETE FIX
+// src/components/students/StudentForm.jsx - FIXED FOR INDEX_NUMBER
 import React, { useState, useEffect } from 'react';
 import { subjectApi, studentApi } from '../../services';
 
@@ -22,6 +22,7 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
   const [subjects, setSubjects] = useState([]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState('');
   const [loadingSubjects, setLoadingSubjects] = useState(false);
 
   const classes = ['12A1', '12A2', '12B1', '12B2', '13A1', '13A2', '13B1', '13B2'];
@@ -37,6 +38,13 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
     loadSubjects();
   }, []);
 
+  // Load existing subject assignments if editing
+  useEffect(() => {
+    if (initialData?.id) {
+      loadStudentSubjects();
+    }
+  }, [initialData]);
+
   const loadSubjects = async () => {
     try {
       setLoadingSubjects(true);
@@ -50,6 +58,26 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
       console.error('Failed to load subjects:', err);
     } finally {
       setLoadingSubjects(false);
+    }
+  };
+
+  const loadStudentSubjects = async () => {
+    if (!initialData?.id) return;
+    
+    try {
+      const response = await studentApi.getStudentSubjects(
+        initialData.id, 
+        new Date().getFullYear()
+      );
+      if (response.success) {
+        const assignedSubjectIds = response.data.studentSubjects.map(s => s.subject_id);
+        setFormData(prev => ({
+          ...prev,
+          subject_ids: assignedSubjectIds
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load student subjects:', err);
     }
   };
 
@@ -111,47 +139,125 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      setIsSubmitting(true);
-      try {
-        // Extract subject_ids from form data
-        const { subject_ids, ...studentData } = formData;
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    setErrors({});
+    setSubmissionStatus('');
+    
+    try {
+      // Extract subject_ids from form data for later use
+      const { subject_ids, ...studentData } = formData;
+      
+      console.log('Starting student submission process...', {
+        isEditing: !!initialData?.id,
+        studentData,
+        subjectIds: subject_ids
+      });
+
+      // STEP 1: Save student data first
+      setSubmissionStatus('Saving student information...');
+      
+      let studentResult;
+      let studentId; // We need the student ID for subject assignment
+      
+      if (initialData?.id) {
+        // Updating existing student
+        console.log('Updating existing student:', initialData.id);
+        studentResult = await studentApi.updateStudent(initialData.id, studentData);
+        studentId = initialData.id; // Use the existing student ID
+      } else {
+        // Creating new student
+        console.log('Creating new student...');
+        studentResult = await studentApi.createStudent(studentData);
         
-        // First, create/update the student
-        const studentResponse = await onSubmit(studentData);
-        
-        // If student operation was successful, assign subjects
-        if (studentResponse.success && subject_ids && subject_ids.length > 0) {
-          try {
-            const studentId = initialData 
-              ? initialData.id 
-              : studentResponse.student.id;
-            
-            // Call the subject assignment API
-            const subjectResponse = await studentApi.assignStudentSubjects(studentId, {
-              subject_ids: subject_ids,
-              academic_year: new Date().getFullYear()
-            });
-            
-            if (!subjectResponse.success) {
-              console.error('Subject assignment failed:', subjectResponse.error);
-              // You might want to show a warning here
-              alert('Student was saved but subject assignment failed: ' + subjectResponse.error);
-            }
-          } catch (subjectError) {
-            console.error('Student created/updated but subject assignment failed:', subjectError);
-            alert('Student was saved but subject assignment failed. Please assign subjects manually.');
-          }
+        // Extract student ID from response
+        if (studentResult.success && studentResult.data) {
+          studentId = studentResult.data.student?.id;
+          console.log('New student created with ID:', studentId);
         }
-      } catch (error) {
-        console.error('Form submission error:', error);
-        setErrors({ submit: error.message || 'Failed to save student' });
-      } finally {
-        setIsSubmitting(false);
       }
+      
+      console.log('Student operation result:', {
+        success: studentResult.success,
+        studentId: studentId,
+        error: studentResult.error
+      });
+      
+      if (!studentResult.success) {
+        setErrors({ submit: studentResult.error || 'Failed to save student' });
+        return;
+      }
+
+      if (!studentId) {
+        setErrors({ submit: 'Failed to get student ID from server response' });
+        return;
+      }
+
+      // STEP 2: Save subjects using student ID (backend will use index_number internally)
+      if (subject_ids && subject_ids.length > 0) {
+        console.log('Student saved successfully. Now saving subjects...', {
+          studentId,
+          subjectIds: subject_ids
+        });
+        
+        setSubmissionStatus('Assigning subjects...');
+        
+        // Wait a moment to ensure student is fully saved
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        try {
+          const subjectAssignmentResult = await studentApi.assignStudentSubjects(studentId, {
+            subject_ids: subject_ids,
+            academic_year: new Date().getFullYear()
+          });
+          
+          console.log('Subject assignment result:', subjectAssignmentResult);
+          
+          if (subjectAssignmentResult.success) {
+            setSubmissionStatus('Student and subjects saved successfully!');
+            console.log('✅ All operations completed successfully');
+          } else {
+            console.error('❌ Subject assignment failed:', subjectAssignmentResult.error);
+            // Student was saved but subjects failed - show warning
+            alert(`Student was saved successfully, but there was an issue assigning subjects: ${subjectAssignmentResult.error}\n\nYou can assign subjects later from the student details page.`);
+          }
+        } catch (subjectError) {
+          console.error('❌ Subject assignment error:', subjectError);
+          alert('Student was saved successfully, but there was an issue assigning subjects. You can assign subjects later from the student details page.');
+        }
+      } else {
+        setSubmissionStatus('Student saved successfully!');
+        console.log('✅ Student saved (no subjects to assign)');
+      }
+
+      // STEP 3: Call parent callback if provided
+      if (onSubmit) {
+        try {
+          await onSubmit(studentData);
+        } catch (parentError) {
+          console.error('Parent callback error:', parentError);
+          // Don't fail the whole operation if parent callback fails
+        }
+      }
+
+      // STEP 4: Success - close form after a brief delay to show success message
+      setTimeout(() => {
+        if (onCancel) {
+          onCancel();
+        }
+      }, 1500);
+
+    } catch (error) {
+      console.error('❌ Form submission error:', error);
+      setErrors({ submit: error.message || 'Failed to save student' });
+      setSubmissionStatus('');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // Rest of the component remains the same...
   // Filter main subjects (excluding common subjects)
   const mainSubjects = subjects.filter(subject => 
     !commonSubjects.includes(subject.subject_name)
@@ -178,7 +284,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
             </h3>
             <button
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              disabled={isSubmitting}
+              className="text-gray-400 hover:text-gray-600 transition-colors disabled:cursor-not-allowed"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -192,6 +299,14 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
               </svg>
               {errors.submit}
+            </div>
+          )}
+
+          {/* Submission Status */}
+          {submissionStatus && (
+            <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              {submissionStatus}
             </div>
           )}
           
@@ -209,7 +324,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     name="index_number"
                     value={formData.index_number}
                     onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    disabled={isSubmitting}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
                       errors.index_number 
                         ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                         : 'border-gray-300 focus:border-blue-500'
@@ -235,7 +351,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    disabled={isSubmitting}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
                       errors.name 
                         ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                         : 'border-gray-300 focus:border-blue-500'
@@ -261,7 +378,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     name="name_with_initials"
                     value={formData.name_with_initials || ''}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isSubmitting}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                     placeholder="Enter name with initials (e.g., A.B.C. Perera)"
                   />
                 </div>
@@ -274,7 +392,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     name="current_class"
                     value={formData.current_class}
                     onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    disabled={isSubmitting}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
                       errors.current_class 
                         ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
                         : 'border-gray-300 focus:border-blue-500'
@@ -304,9 +423,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     name="admission_year"
                     value={formData.admission_year}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                     min="2000"
                     max={new Date().getFullYear()}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                   />
                 </div>
               </div>
@@ -317,10 +437,11 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                 </label>
                 <textarea
                   name="address"
-                  value={formData.address}
+                  value={formData.address || ''}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                   placeholder="Enter student's address"
                 />
               </div>
@@ -349,8 +470,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                             type="checkbox"
                             checked={formData.subject_ids?.includes(subject.id)}
                             onChange={(e) => handleSubjectChange(subject.id, e.target.checked)}
-                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                            disabled
+                            disabled={isSubmitting}
+                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded disabled:cursor-not-allowed"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-900">
                             {subject.subject_name}
@@ -381,7 +502,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                             type="checkbox"
                             checked={formData.subject_ids?.includes(subject.id)}
                             onChange={(e) => handleSubjectChange(subject.id, e.target.checked)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            disabled={isSubmitting}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:cursor-not-allowed"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-900">
                             {subject.subject_name}
@@ -414,9 +536,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     <input
                       type="text"
                       name="mother_name"
-                      value={formData.mother_name}
+                      value={formData.mother_name || ''}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Enter mother's name"
                     />
                   </div>
@@ -427,9 +550,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     <input
                       type="tel"
                       name="mother_phone"
-                      value={formData.mother_phone}
+                      value={formData.mother_phone || ''}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Enter mother's phone number"
                     />
                   </div>
@@ -447,9 +571,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     <input
                       type="text"
                       name="father_name"
-                      value={formData.father_name}
+                      value={formData.father_name || ''}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Enter father's name"
                     />
                   </div>
@@ -460,9 +585,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     <input
                       type="tel"
                       name="father_phone"
-                      value={formData.father_phone}
+                      value={formData.father_phone || ''}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Enter father's phone number"
                     />
                   </div>
@@ -480,9 +606,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     <input
                       type="text"
                       name="guardian_name"
-                      value={formData.guardian_name}
+                      value={formData.guardian_name || ''}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Enter guardian's name"
                     />
                   </div>
@@ -493,9 +620,10 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                     <input
                       type="tel"
                       name="guardian_phone"
-                      value={formData.guardian_phone}
+                      value={formData.guardian_phone || ''}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Enter guardian's phone number"
                     />
                   </div>
@@ -508,14 +636,15 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
               <button 
                 type="button" 
                 onClick={onCancel} 
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                disabled={isSubmitting}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors duration-200"
               >
                 Cancel
               </button>
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 transition-colors duration-200 flex items-center"
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center"
               >
                 {isSubmitting && (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

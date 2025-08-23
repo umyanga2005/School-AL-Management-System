@@ -80,11 +80,15 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/students - Create new student
+// POST /api/students - Create new student (Updated with debugging)
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { index_number, name, name_with_initials, address, mother_name, father_name, guardian_name,
             mother_phone, father_phone, guardian_phone, current_class, admission_year } = req.body;
+    
+    console.log('Creating student with data:', {
+      index_number, name, current_class, admission_year
+    });
     
     // Validate required fields
     if (!index_number || !name || !current_class) {
@@ -129,7 +133,16 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       admission_year || new Date().getFullYear()
     ]);
     
-    res.status(201).json({ success: true, student: result.rows[0] });
+    console.log('Student created successfully:', result.rows[0]);
+    
+    // IMPORTANT: Make sure response structure matches what frontend expects
+    res.status(201).json({ 
+      success: true, 
+      data: {
+        student: result.rows[0]
+      },
+      message: 'Student created successfully'
+    });
   } catch (error) {
     console.error('Error creating student:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -300,19 +313,25 @@ router.post('/promote-class', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// backend/routes/students.js - SUBJECT ASSIGNMENT ENDPOINT
+// POST /api/students/:id/subjects - Assign subjects to a student (FIXED VERSION)
 router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { subject_ids, academic_year } = req.body;
     
-    console.log('Assigning subjects to student:', { id, subject_ids, academic_year });
+    console.log('Assigning subjects to student:', { 
+      studentId: id, 
+      subject_ids, 
+      academic_year,
+      subjectCount: subject_ids?.length 
+    });
     
     // Validate input
     if (!subject_ids || !Array.isArray(subject_ids) || subject_ids.length === 0) {
+      console.log('Invalid subject_ids:', subject_ids);
       return res.status(400).json({ 
         success: false, 
-        error: 'Subject IDs array is required' 
+        error: 'Subject IDs array is required and must not be empty' 
       });
     }
     
@@ -323,29 +342,39 @@ router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
       });
     }
     
-    // Check if student exists
-    const studentCheck = await db.execute('SELECT id FROM students WHERE id = $1 AND status = \'active\'', [id]);
+    // Get student's index_number
+    const studentCheck = await db.execute(
+      'SELECT id, index_number, name FROM students WHERE id = $1 AND status = \'active\'', 
+      [id]
+    );
+    
     if (studentCheck.rows.length === 0) {
+      console.log('Student not found:', id);
       return res.status(404).json({ success: false, error: 'Student not found' });
     }
+    
+    const indexNumber = studentCheck.rows[0].index_number;
+    console.log('Student found:', studentCheck.rows[0]);
     
     // Begin transaction
     await db.execute('BEGIN');
     
     try {
       // Delete existing subject assignments for this student and academic year
-      await db.execute(
-        'DELETE FROM student_subjects WHERE student_id = $1 AND academic_year = $2',
-        [id, academic_year]
+      const deleteResult = await db.execute(
+        'DELETE FROM student_subjects WHERE index_number = $1 AND academic_year = $2',
+        [indexNumber, academic_year]
       );
       
-      console.log('Deleted existing assignments for student:', id, 'academic year:', academic_year);
+      console.log('Deleted existing assignments, rows affected:', deleteResult.rowCount);
       
       // Insert new subject assignments
+      let insertedCount = 0;
       for (const subjectId of subject_ids) {
         // Check if subject exists
-        const subjectCheck = await db.execute('SELECT id FROM subjects WHERE id = $1', [subjectId]);
+        const subjectCheck = await db.execute('SELECT id, subject_name FROM subjects WHERE id = $1', [subjectId]);
         if (subjectCheck.rows.length === 0) {
+          console.log('Subject not found:', subjectId);
           await db.execute('ROLLBACK');
           return res.status(400).json({ 
             success: false, 
@@ -353,32 +382,50 @@ router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
           });
         }
         
-        await db.execute(
-          'INSERT INTO student_subjects (student_id, subject_id, academic_year) VALUES ($1, $2, $3)',
-          [id, subjectId, academic_year]
+        console.log('Inserting subject assignment:', {
+          indexNumber: indexNumber,
+          subjectId: subjectId,
+          subjectName: subjectCheck.rows[0].subject_name,
+          academicYear: academic_year
+        });
+        
+        const insertResult = await db.execute(
+          'INSERT INTO student_subjects (index_number, subject_id, academic_year) VALUES ($1, $2, $3)',
+          [indexNumber, subjectId, academic_year]
         );
         
-        console.log('Assigned subject:', subjectId, 'to student:', id);
+        insertedCount++;
+        console.log('Subject assignment inserted, rows affected:', insertResult.rowCount);
       }
       
       await db.execute('COMMIT');
       
-      console.log('Successfully assigned', subject_ids.length, 'subjects to student:', id);
+      console.log('Successfully assigned', insertedCount, 'subjects to student:', id);
       
       res.json({ 
         success: true, 
-        message: `Assigned ${subject_ids.length} subjects to student` 
+        data: {
+          assignedCount: insertedCount,
+          studentId: id,
+          indexNumber: indexNumber,
+          academicYear: academic_year
+        },
+        message: `Successfully assigned ${insertedCount} subjects to student` 
       });
     } catch (error) {
       await db.execute('ROLLBACK');
+      console.error('Transaction error:', error);
       throw error;
     }
   } catch (error) {
     console.error('Error assigning subjects to student:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: 'Check server logs for more information'
+    });
   }
 });
-
 
 
 module.exports = router;

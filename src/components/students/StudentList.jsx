@@ -1,4 +1,4 @@
-// src/components/students/StudentList.jsx
+// src/components/students/StudentList.jsx - UPDATED VERSION
 import React, { useState, useEffect } from 'react';
 import { studentApi } from '../../services/studentApi';
 import StudentForm from './StudentForm';
@@ -12,7 +12,8 @@ const StudentList = () => {
   const [classFilter, setClassFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null); // Changed from selectedStudent to editingStudent
+  const [selectedStudent, setSelectedStudent] = useState(null); // For viewing details
   const [showPromotion, setShowPromotion] = useState(false);
 
   const classes = ['12A1', '12A2', '12B1', '12B2', '13A1', '13A2', '13B1', '13B2'];
@@ -29,7 +30,7 @@ const StudentList = () => {
       
       // Handle different response structures
       if (response.success) {
-        setStudents(response.data.students || response.data || []);
+        setStudents(response.data?.students || response.data || []);
       } else {
         setError(response.error || 'Failed to load students');
         setStudents([]);
@@ -42,20 +43,46 @@ const StudentList = () => {
     }
   };
 
-  const handleCreateStudent = async (studentData) => {
+  // UPDATED: This is the key change - handleStudentSubmit function
+  const handleStudentSubmit = async (studentData) => {
     try {
       setError('');
-      const response = await studentApi.createStudent(studentData);
+      let result;
       
-      if (response.success) {
-        setShowForm(false);
-        await loadStudents();
+      if (editingStudent) {
+        // Update existing student
+        result = await studentApi.updateStudent(editingStudent.id, studentData);
       } else {
-        setError(response.error || 'Failed to create student');
+        // Create new student
+        result = await studentApi.createStudent(studentData);
       }
-    } catch (err) {
-      setError(err.message || 'Failed to create student');
+      
+      if (result.success) {
+        // Refresh the student list
+        await loadStudents();
+        return result; // Return the result so StudentForm can use it
+      } else {
+        throw new Error(result.error || 'Failed to save student');
+      }
+    } catch (error) {
+      console.error('Error saving student:', error);
+      setError(error.message || 'Failed to save student');
+      throw error; // Re-throw so StudentForm can handle it
     }
+  };
+
+  // UPDATED: Form cancel handler
+  const handleFormCancel = () => {
+    setShowForm(false);
+    setEditingStudent(null);
+    setError(''); // Clear any errors
+  };
+
+  // NEW: Handle edit student
+  const handleEditStudent = (student) => {
+    setEditingStudent(student);
+    setShowForm(true);
+    setSelectedStudent(null); // Close details view if open
   };
 
   const handleDeleteStudent = async (id) => {
@@ -109,7 +136,10 @@ const StudentList = () => {
             ))}
           </select>
           <button 
-            onClick={() => setShowForm(true)} 
+            onClick={() => {
+              setEditingStudent(null); // Make sure we're in create mode
+              setShowForm(true);
+            }} 
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors duration-200 flex items-center"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,6 +165,14 @@ const StudentList = () => {
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
           </svg>
           {error}
+          <button 
+            onClick={() => setError('')}
+            className="ml-auto text-red-600 hover:text-red-800"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 
@@ -156,11 +194,12 @@ const StudentList = () => {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Modals - UPDATED */}
       {showForm && (
         <StudentForm
-          onSubmit={handleCreateStudent}
-          onCancel={() => setShowForm(false)}
+          initialData={editingStudent} // Pass editing student data if available
+          onSubmit={handleStudentSubmit} // Use the updated submit handler
+          onCancel={handleFormCancel} // Use the updated cancel handler
         />
       )}
 
@@ -218,12 +257,22 @@ const StudentList = () => {
                   </div>
                 </div>
 
+                {/* UPDATED: Action buttons with edit functionality */}
                 <div className="flex space-x-2">
                   <button 
                     onClick={() => setSelectedStudent(student)}
                     className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
                   >
                     View Details
+                  </button>
+                  <button 
+                    onClick={() => handleEditStudent(student)}
+                    className="flex-shrink-0 bg-green-50 hover:bg-green-100 text-green-600 p-2 rounded-md transition-colors duration-200"
+                    title="Edit Student"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
                   </button>
                   <button 
                     onClick={() => handleDeleteStudent(student.id)}
@@ -256,7 +305,10 @@ const StudentList = () => {
           {!searchTerm && !classFilter && (
             <div className="mt-6">
               <button 
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setEditingStudent(null);
+                  setShowForm(true);
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors duration-200"
               >
                 Add First Student

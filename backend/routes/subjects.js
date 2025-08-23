@@ -111,15 +111,27 @@ router.get('/students/:id/subjects', requireAuth, async (req, res) => {
     const { id } = req.params;
     const { academic_year } = req.query;
     
+    // Get student's index_number first
+    const studentCheck = await db.execute(
+      'SELECT index_number FROM students WHERE id = $1 AND status = \'active\'', 
+      [id]
+    );
+    
+    if (studentCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+    
+    const indexNumber = studentCheck.rows[0].index_number;
+    
     let sql = `
-      SELECT ss.id, ss.student_id, ss.subject_id, ss.academic_year, ss.assigned_date,
+      SELECT ss.id, ss.index_number, ss.subject_id, ss.academic_year, ss.assigned_date,
              s.subject_code, s.subject_name, s.stream
       FROM student_subjects ss
       JOIN subjects s ON ss.subject_id = s.id
-      WHERE ss.student_id = $1 AND s.status = 'active'
+      WHERE ss.index_number = $1 AND s.status = 'active'
     `;
     
-    const params = [id];
+    const params = [indexNumber];
     
     if (academic_year) {
       sql += ' AND ss.academic_year = $2';
@@ -141,16 +153,23 @@ router.post('/students/:id/subjects', requireAuth, async (req, res) => {
     const { id } = req.params;
     const { subject_ids, academic_year } = req.body;
     
+    // Get student's index_number
+    const studentCheck = await db.execute(
+      'SELECT index_number, current_class FROM students WHERE id = $1',
+      [id]
+    );
+    
+    if (studentCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+    
+    const indexNumber = studentCheck.rows[0].index_number;
+    const currentClass = studentCheck.rows[0].current_class;
+    
     // Check if user has permission
     if (req.user.role !== 'admin') {
       // Teachers/coordinators can only assign to their own class
-      const studentCheck = await db.execute(
-        'SELECT current_class FROM students WHERE id = $1',
-        [id]
-      );
-      
-      if (studentCheck.rows.length === 0 || 
-          (req.user.assignedClass && studentCheck.rows[0].current_class !== req.user.assignedClass)) {
+      if (req.user.assignedClass && currentClass !== req.user.assignedClass) {
         return res.status(403).json({ 
           success: false, 
           error: 'Not authorized to assign subjects to this student' 
@@ -164,13 +183,13 @@ router.post('/students/:id/subjects', requireAuth, async (req, res) => {
     
     // Remove existing assignments for this academic year
     await db.execute(
-      'DELETE FROM student_subjects WHERE student_id = $1 AND academic_year = $2',
-      [id, academic_year]
+      'DELETE FROM student_subjects WHERE index_number = $1 AND academic_year = $2',
+      [indexNumber, academic_year]
     );
     
     // Insert new assignments
     const assignments = subject_ids.map(subject_id => [
-      id, subject_id, academic_year, new Date()
+      indexNumber, subject_id, academic_year, new Date()
     ]);
     
     if (assignments.length > 0) {
@@ -179,7 +198,7 @@ router.post('/students/:id/subjects', requireAuth, async (req, res) => {
       ).join(', ');
       
       const sql = `
-        INSERT INTO student_subjects (student_id, subject_id, academic_year, assigned_date)
+        INSERT INTO student_subjects (index_number, subject_id, academic_year, assigned_date)
         VALUES ${values}
         RETURNING *
       `;
@@ -203,6 +222,7 @@ router.post('/students/:id/subjects', requireAuth, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 
 module.exports = router;

@@ -131,6 +131,26 @@ export const studentApi = {
     }
   },
 
+  getStudentSubjects: async (studentId, academicYear) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      const url = academicYear
+        ? `${apiService.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
+        : `${apiService.endpoints.subjects}/students/${studentId}/subjects`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token)
+      });
+    } catch (error) {
+      console.error('Error in getStudentSubjects:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // src/services/studentApi.js - UPDATE THE assignStudentSubjects METHOD
   assignStudentSubjects: async (studentId, assignmentData) => {
     try {
@@ -139,7 +159,7 @@ export const studentApi = {
         return { success: false, error: 'No authentication token found' };
       }
 
-      // Make sure this endpoint matches your backend route
+      // Use the students endpoint with student ID
       return await apiService.request(`${apiService.endpoints.students}/${studentId}/subjects`, {
         method: 'POST',
         headers: apiService.getAuthHeaders(token),
