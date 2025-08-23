@@ -1,4 +1,4 @@
-// src/components/students/ClassPromotion.jsx
+// src/components/students/ClassPromotion.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { studentApi } from '../../services/studentApi';
 
@@ -28,12 +28,18 @@ const ClassPromotion = ({ onClose, onPromote }) => {
       const response = await studentApi.getStudents(fromClass);
       
       // Handle different response structures
-      const studentData = response.data?.students || response.data || [];
-      setStudents(studentData);
-      setSelectedStudents(studentData.map(s => s.id));
+      if (response.success) {
+        const studentData = response.data.students || response.data || [];
+        setStudents(studentData);
+        setSelectedStudents(studentData.map(s => s.id));
+      } else {
+        setError(response.error || 'Failed to load students');
+        setStudents([]);
+        setSelectedStudents([]);
+      }
     } catch (err) {
       console.error('Error loading students:', err);
-      setError(err.response?.data?.error || 'Failed to load students');
+      setError(err.message || 'Failed to load students');
       setStudents([]);
       setSelectedStudents([]);
     } finally {
@@ -62,19 +68,23 @@ const ClassPromotion = ({ onClose, onPromote }) => {
     try {
       setLoading(true);
       setError('');
-      await studentApi.promoteStudents({
+      const response = await studentApi.promoteStudents({
         studentIds: selectedStudents,
         fromClass,
         toClass,
         academicYear
       });
       
-      alert(`Successfully promoted ${selectedStudents.length} students from ${fromClass} to ${toClass}`);
-      if (onPromote) onPromote();
-      onClose();
+      if (response.success) {
+        alert(`Successfully promoted ${selectedStudents.length} students from ${fromClass} to ${toClass}`);
+        if (onPromote) onPromote();
+        onClose();
+      } else {
+        setError(response.error || 'Failed to promote students');
+      }
     } catch (err) {
       console.error('Error promoting students:', err);
-      setError(err.response?.data?.error || 'Failed to promote students');
+      setError(err.message || 'Failed to promote students');
     } finally {
       setLoading(false);
     }

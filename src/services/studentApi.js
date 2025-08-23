@@ -1,51 +1,153 @@
-// src/services/studentApi.js
+// src/services/studentApi.js - FIXED VERSION
 import apiService from './api';
 
 export const studentApi = {
-  getStudents: (classFilter = '') => {
-    const token = localStorage.getItem('token');
-    return apiService.getStudents(token, classFilter);
+  getStudents: async (classFilter = '') => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      const url = classFilter 
+        ? `${apiService.endpoints.students}?class=${encodeURIComponent(classFilter)}`
+        : apiService.endpoints.students;
+      
+      const response = await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token)
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Error in getStudents:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  getStudent: (id) => {
-    const token = localStorage.getItem('token');
-    return apiService.request(`${apiService.endpoints.students}/${id}`, {
-      headers: apiService.getAuthHeaders(token)
-    });
+  getStudent: async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      return await apiService.request(`${apiService.endpoints.students}/${id}`, {
+        headers: apiService.getAuthHeaders(token)
+      });
+    } catch (error) {
+      console.error('Error in getStudent:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  createStudent: (studentData) => {
-    const token = localStorage.getItem('token');
-    return apiService.createStudent(token, studentData);
+  createStudent: async (studentData) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      return await apiService.request(apiService.endpoints.students, {
+        method: 'POST',
+        headers: apiService.getAuthHeaders(token),
+        body: JSON.stringify(studentData)
+      });
+    } catch (error) {
+      console.error('Error in createStudent:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  updateStudent: (id, studentData) => {
-    const token = localStorage.getItem('token');
-    return apiService.updateStudent(token, id, studentData);
+  updateStudent: async (id, studentData) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      return await apiService.request(`${apiService.endpoints.students}/${id}`, {
+        method: 'PUT',
+        headers: apiService.getAuthHeaders(token),
+        body: JSON.stringify(studentData)
+      });
+    } catch (error) {
+      console.error('Error in updateStudent:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  deleteStudent: (id) => {
-    const token = localStorage.getItem('token');
-    return apiService.deleteStudent(token, id);
+  deleteStudent: async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      return await apiService.request(`${apiService.endpoints.students}/${id}`, {
+        method: 'DELETE',
+        headers: apiService.getAuthHeaders(token)
+      });
+    } catch (error) {
+      console.error('Error in deleteStudent:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  promoteStudents: (promotionData) => {
-    const token = localStorage.getItem('token');
-    return apiService.promoteStudents(token, promotionData);
+  promoteStudents: async (promotionData) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      return await apiService.request(`${apiService.endpoints.students}/promote-class`, {
+        method: 'POST',
+        headers: apiService.getAuthHeaders(token),
+        body: JSON.stringify(promotionData)
+      });
+    } catch (error) {
+      console.error('Error in promoteStudents:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  getStudentSubjects: (studentId, academicYear) => {
-    const token = localStorage.getItem('token');
-    return apiService.getStudentSubjects(token, studentId, academicYear);
+  getStudentSubjects: async (studentId, academicYear) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      const url = academicYear
+        ? `${apiService.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
+        : `${apiService.endpoints.subjects}/students/${studentId}/subjects`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token)
+      });
+    } catch (error) {
+      console.error('Error in getStudentSubjects:', error);
+      return { success: false, error: error.message };
+    }
   },
 
-  // Add this method to the studentApi object:
-  assignStudentSubjects: (studentId, assignmentData) => {
-    const token = localStorage.getItem('token');
-    return apiService.request(`${apiService.endpoints.students}/${studentId}/subjects`, {
-      method: 'POST',
-      headers: apiService.getAuthHeaders(token),
-      body: JSON.stringify(assignmentData)
-    });
+  // src/services/studentApi.js - UPDATE THE assignStudentSubjects METHOD
+  assignStudentSubjects: async (studentId, assignmentData) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return { success: false, error: 'No authentication token found' };
+      }
+
+      // Make sure this endpoint matches your backend route
+      return await apiService.request(`${apiService.endpoints.students}/${studentId}/subjects`, {
+        method: 'POST',
+        headers: apiService.getAuthHeaders(token),
+        body: JSON.stringify(assignmentData)
+      });
+    } catch (error) {
+      console.error('Error in assignStudentSubjects:', error);
+      return { success: false, error: error.message };
+    }
   },
 };

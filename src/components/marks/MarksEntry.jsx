@@ -15,7 +15,7 @@ const MarksEntry = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const classes = ['12A1', '12A2', '13A1', '13A2'];
+  const classes = ['12A1', '12A2', '12B1', '12B2', '13A1', '13A2', '13B1', '13B2'];
 
   useEffect(() => {
     loadInitialData();

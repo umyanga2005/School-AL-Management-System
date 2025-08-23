@@ -1,11 +1,12 @@
-// src/components/students/StudentForm.jsx
+// src/components/students/StudentForm.jsx - COMPLETE FIX
 import React, { useState, useEffect } from 'react';
-import { subjectApi } from '../../services';
+import { subjectApi, studentApi } from '../../services';
 
 const StudentForm = ({ onSubmit, onCancel, initialData }) => {
   const [formData, setFormData] = useState(initialData || {
     index_number: '',
     name: '',
+    name_with_initials: '',
     address: '',
     mother_name: '',
     father_name: '',
@@ -40,7 +41,11 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
     try {
       setLoadingSubjects(true);
       const response = await subjectApi.getSubjects();
-      setSubjects(response.data?.subjects || []);
+      if (response.success) {
+        setSubjects(response.data?.subjects || []);
+      } else {
+        console.error('Failed to load subjects:', response.error);
+      }
     } catch (err) {
       console.error('Failed to load subjects:', err);
     } finally {
@@ -61,7 +66,7 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
       const currentSubjects = prev.subject_ids || [];
       const updatedSubjects = isSelected
         ? [...currentSubjects, subjectId]
-        : currentSubjects.filter(id => id !== subjectId); // ✅ fixed here
+        : currentSubjects.filter(id => id !== subjectId);
       
       return { ...prev, subject_ids: updatedSubjects };
     });
@@ -109,9 +114,38 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        await onSubmit(formData);
+        // Extract subject_ids from form data
+        const { subject_ids, ...studentData } = formData;
+        
+        // First, create/update the student
+        const studentResponse = await onSubmit(studentData);
+        
+        // If student operation was successful, assign subjects
+        if (studentResponse.success && subject_ids && subject_ids.length > 0) {
+          try {
+            const studentId = initialData 
+              ? initialData.id 
+              : studentResponse.student.id;
+            
+            // Call the subject assignment API
+            const subjectResponse = await studentApi.assignStudentSubjects(studentId, {
+              subject_ids: subject_ids,
+              academic_year: new Date().getFullYear()
+            });
+            
+            if (!subjectResponse.success) {
+              console.error('Subject assignment failed:', subjectResponse.error);
+              // You might want to show a warning here
+              alert('Student was saved but subject assignment failed: ' + subjectResponse.error);
+            }
+          } catch (subjectError) {
+            console.error('Student created/updated but subject assignment failed:', subjectError);
+            alert('Student was saved but subject assignment failed. Please assign subjects manually.');
+          }
+        }
       } catch (error) {
         console.error('Form submission error:', error);
+        setErrors({ submit: error.message || 'Failed to save student' });
       } finally {
         setIsSubmitting(false);
       }
@@ -151,6 +185,15 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
               </svg>
             </button>
           </div>
+          
+          {errors.submit && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+              </svg>
+              {errors.submit}
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Information */}
@@ -207,6 +250,20 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
                       {errors.name}
                     </p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Name with Initials
+                  </label>
+                  <input
+                    type="text"
+                    name="name_with_initials"
+                    value={formData.name_with_initials || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter name with initials (e.g., A.B.C. Perera)"
+                  />
                 </div>
 
                 <div>

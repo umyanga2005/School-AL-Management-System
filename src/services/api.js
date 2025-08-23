@@ -1,4 +1,4 @@
-// src/services/api.js (updated with new endpoints)
+// src/services/api.js (updated with enhanced error handling)
 class ApiService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL;
@@ -19,38 +19,64 @@ class ApiService {
   }
 
   getAuthHeaders(token) {
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+    const headers = {
+      'Content-Type': 'application/json'
     };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
   }
 
   async request(url, options = {}) {
     try {
+      // Get token from localStorage if not provided in headers
+      let token = localStorage.getItem('token');
+      if (options.headers && options.headers.Authorization) {
+        token = options.headers.Authorization.replace('Bearer ', '');
+      }
+      
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Content-Type': 'application/json',
+          ...this.getAuthHeaders(token),
           ...options.headers
         }
       });
 
       const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Invalid JSON response: ${text}`);
+      let data = {};
+      
+      // Try to parse JSON only if there's content
+      if (text && text.trim() !== '') {
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('JSON parse error:', e, 'Response text:', text);
+          throw new Error(`Invalid JSON response: ${text.substring(0, 100)}...`);
+        }
       }
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        // Handle different error response formats
+        const errorMessage = data.error || data.message || `HTTP error! status: ${response.status}`;
+        throw new Error(errorMessage);
       }
 
-      return { success: true, data, status: response.status };
+      return { 
+        success: true, 
+        data, 
+        status: response.status 
+      };
     } catch (error) {
       console.error('API Request Error:', error);
-      return { success: false, error: error.message };
+      return { 
+        success: false, 
+        error: error.message,
+        status: error.status || 0
+      };
     }
   }
 
@@ -112,10 +138,10 @@ class ApiService {
     });
   }
 
-  // New methods for student management
+  // Student management methods
   async getStudents(token, classFilter = '') {
     const url = classFilter 
-      ? `${this.endpoints.students}?class=${classFilter}`
+      ? `${this.endpoints.students}?class=${encodeURIComponent(classFilter)}`
       : this.endpoints.students;
     
     return this.request(url, {
@@ -154,7 +180,7 @@ class ApiService {
     });
   }
 
-  // New methods for subject management
+  // Subject management methods
   async getSubjects(token) {
     return this.request(this.endpoints.subjects, {
       headers: this.getAuthHeaders(token)
@@ -195,7 +221,7 @@ class ApiService {
     });
   }
 
-  // New methods for term management
+  // Term management methods
   async getTerms(token) {
     return this.request(this.endpoints.terms, {
       headers: this.getAuthHeaders(token)
@@ -216,11 +242,13 @@ class ApiService {
     });
   }
 
-  // New methods for marks management
+  // Marks management methods
   async getMarks(token, filters = {}) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
-      if (value) params.append(key, value);
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
     });
 
     const url = `${this.endpoints.marks}?${params.toString()}`;

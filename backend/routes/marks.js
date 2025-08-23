@@ -46,7 +46,7 @@ const requireTeacherOrCoordinator = (req, res, next) => {
 };
 
 // GET /api/marks - Get marks with filters
-router.get('/', requireAuth, requireTeacherOrCoordinator, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { student_id, subject_id, term_id, class: studentClass } = req.query;
     
@@ -65,6 +65,12 @@ router.get('/', requireAuth, requireTeacherOrCoordinator, async (req, res) => {
     const params = [];
     let paramCount = 0;
     
+    // Admin can see all, teachers/coordinators only see their assigned class
+    if (req.user.role !== 'admin' && req.user.assignedClass) {
+      sql += ` AND s.current_class = $${++paramCount}`;
+      params.push(req.user.assignedClass);
+    }
+    
     if (student_id) {
       sql += ` AND m.student_id = $${++paramCount}`;
       params.push(student_id);
@@ -80,7 +86,8 @@ router.get('/', requireAuth, requireTeacherOrCoordinator, async (req, res) => {
       params.push(term_id);
     }
     
-    if (studentClass) {
+    if (studentClass && req.user.role === 'admin') {
+      // Only admin can filter by class
       sql += ` AND s.current_class = $${++paramCount}`;
       params.push(studentClass);
     }

@@ -136,10 +136,27 @@ router.get('/students/:id/subjects', requireAuth, async (req, res) => {
 });
 
 // POST /api/subjects/students/:id/subjects - Assign subjects to a student
-router.post('/students/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
+router.post('/students/:id/subjects', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { subject_ids, academic_year } = req.body;
+    
+    // Check if user has permission
+    if (req.user.role !== 'admin') {
+      // Teachers/coordinators can only assign to their own class
+      const studentCheck = await db.execute(
+        'SELECT current_class FROM students WHERE id = $1',
+        [id]
+      );
+      
+      if (studentCheck.rows.length === 0 || 
+          (req.user.assignedClass && studentCheck.rows[0].current_class !== req.user.assignedClass)) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Not authorized to assign subjects to this student' 
+        });
+      }
+    }
     
     if (!subject_ids || !subject_ids.length || !academic_year) {
       return res.status(400).json({ success: false, error: 'Subject IDs and academic year are required' });
@@ -156,58 +173,36 @@ router.post('/students/:id/subjects', requireAuth, requireAdmin, async (req, res
       id, subject_id, academic_year, new Date()
     ]);
     
-    const sql = `
-      INSERT INTO student_subjects (student_id, subject_id, academic_year, assigned_date)
-      VALUES ${assignments.map((_, i) => 
-        `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`
-      ).join(', ')}
-      RETURNING *
-    `;
-    
-    const flatParams = assignments.flat();
-    const result = await db.execute(sql, flatParams);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: `Assigned ${result.rows.length} subjects to student`,
-      studentSubjects: result.rows 
-    });
+    if (assignments.length > 0) {
+      const values = assignments.map((_, index) => 
+        `($${index * 4 + 1}, $${index * 4 + 2}, $${index * 4 + 3}, $${index * 4 + 4})`
+      ).join(', ');
+      
+      const sql = `
+        INSERT INTO student_subjects (student_id, subject_id, academic_year, assigned_date)
+        VALUES ${values}
+        RETURNING *
+      `;
+      
+      const flatParams = assignments.flat();
+      const result = await db.execute(sql, flatParams);
+      
+      res.status(201).json({ 
+        success: true, 
+        message: `Assigned ${result.rows.length} subjects to student`,
+        studentSubjects: result.rows 
+      });
+    } else {
+      res.json({ 
+        success: true, 
+        message: 'No subjects assigned (all removed)',
+        studentSubjects: [] 
+      });
+    }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// POST /api/students/:id/subjects - Assign subjects to student
-router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { subject_ids } = req.body;
-    
-    // First, verify the student exists
-    const studentCheck = await db.execute('SELECT id FROM students WHERE id = $1 AND status = \'active\'', [id]);
-    if (studentCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Student not found' });
-    }
-    
-    // Remove existing subject assignments
-    await db.execute('DELETE FROM student_subjects WHERE student_id = $1', [id]);
-    
-    // Insert new subject assignments
-    if (subject_ids && subject_ids.length > 0) {
-      const assignments = subject_ids.map(subject_id => [id, subject_id]);
-      const sql = `
-        INSERT INTO student_subjects (student_id, subject_id)
-        VALUES ${assignments.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ')}
-      `;
-      
-      const flatParams = assignments.flat();
-      await db.execute(sql, flatParams);
-    }
-    
-    res.json({ success: true, message: 'Subjects assigned successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 module.exports = router;

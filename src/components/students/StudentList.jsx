@@ -26,10 +26,17 @@ const StudentList = () => {
       setLoading(true);
       setError('');
       const response = await studentApi.getStudents(classFilter);
-      // Check both possible response structures
-      setStudents(response.data?.students || response.data || []);
+      
+      // Handle different response structures
+      if (response.success) {
+        setStudents(response.data.students || response.data || []);
+      } else {
+        setError(response.error || 'Failed to load students');
+        setStudents([]);
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load students');
+      setError(err.message || 'Failed to load students');
+      setStudents([]);
     } finally {
       setLoading(false);
     }
@@ -38,11 +45,16 @@ const StudentList = () => {
   const handleCreateStudent = async (studentData) => {
     try {
       setError('');
-      await studentApi.createStudent(studentData);
-      setShowForm(false);
-      await loadStudents();
+      const response = await studentApi.createStudent(studentData);
+      
+      if (response.success) {
+        setShowForm(false);
+        await loadStudents();
+      } else {
+        setError(response.error || 'Failed to create student');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create student');
+      setError(err.message || 'Failed to create student');
     }
   };
 
@@ -51,10 +63,15 @@ const StudentList = () => {
     
     try {
       setError('');
-      await studentApi.deleteStudent(id);
-      await loadStudents();
+      const response = await studentApi.deleteStudent(id);
+      
+      if (response.success) {
+        await loadStudents();
+      } else {
+        setError(response.error || 'Failed to delete student');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete student');
+      setError(err.message || 'Failed to delete student');
     }
   };
 

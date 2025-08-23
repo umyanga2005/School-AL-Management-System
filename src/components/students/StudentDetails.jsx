@@ -4,7 +4,6 @@ import { studentApi } from '../../services/studentApi';
 import StudentSubjects from './StudentSubjects';
 import StudentForm from './StudentForm';
 
-
 const StudentDetails = ({ student, onClose, onUpdate }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [studentData, setStudentData] = useState(student);
@@ -20,124 +19,205 @@ const StudentDetails = ({ student, onClose, onUpdate }) => {
     try {
       setLoading(true);
       const response = await studentApi.updateStudent(student.id, updatedData);
-      setStudentData(response.data.student);
-      setIsEditing(false);
-      if (onUpdate) onUpdate();
+      
+      if (response.success) {
+        setStudentData(response.data.student);
+        setIsEditing(false);
+        if (onUpdate) onUpdate();
+      } else {
+        setError(response.error || 'Failed to update student');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update student');
+      setError(err.message || 'Failed to update student');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content large">
-        <div className="modal-header">
-          <h3>Student Details: {studentData.name}</h3>
-          <button onClick={onClose} className="close-btn">×</button>
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+          <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
         </div>
 
-        <div className="tabs">
-          <button 
-            className={activeTab === 'details' ? 'active' : ''}
-            onClick={() => setActiveTab('details')}
-          >
-            Personal Details
-          </button>
-          <button 
-            className={activeTab === 'subjects' ? 'active' : ''}
-            onClick={() => setActiveTab('subjects')}
-          >
-            Subjects
-          </button>
-          <button 
-            className={activeTab === 'academic' ? 'active' : ''}
-            onClick={() => setActiveTab('academic')}
-          >
-            Academic Records
-          </button>
-        </div>
+        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-        {error && <div className="error">{error}</div>}
-
-        {activeTab === 'details' && (
-          <div className="student-details">
-            <div className="detail-row">
-              <span className="label">Index Number:</span>
-              <span className="value">{studentData.index_number}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Class:</span>
-              <span className="value">{studentData.current_class}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Admission Year:</span>
-              <span className="value">{studentData.admission_year}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Address:</span>
-              <span className="value">{studentData.address || 'Not provided'}</span>
-            </div>
-            
-            <h4>Parent/Guardian Information</h4>
-            <div className="detail-row">
-              <span className="label">Mother:</span>
-              <span className="value">{studentData.mother_name || 'Not provided'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Mother's Phone:</span>
-              <span className="value">{studentData.mother_phone || 'Not provided'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Father:</span>
-              <span className="value">{studentData.father_name || 'Not provided'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Father's Phone:</span>
-              <span className="value">{studentData.father_phone || 'Not provided'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Guardian:</span>
-              <span className="value">{studentData.guardian_name || 'Not provided'}</span>
-            </div>
-            <div className="detail-row">
-              <span className="label">Guardian's Phone:</span>
-              <span className="value">{studentData.guardian_phone || 'Not provided'}</span>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'subjects' && (
-          <StudentSubjects studentId={student.id} />
-        )}
-
-        {activeTab === 'academic' && (
-          <div className="academic-records">
-            <p>Academic records will be displayed here once marks are entered.</p>
-            {/* This will be connected to marks components later */}
-          </div>
-        )}
-
-        <div className="modal-actions">
-          <button onClick={onClose} className="btn-secondary">Close</button>
-          {activeTab === 'details' && (
-            <button 
-              onClick={() => setIsEditing(!isEditing)} 
-              className="btn-primary"
+        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full sm:p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">
+              Student Details: {studentData.name}
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
             >
-              {isEditing ? 'Cancel Edit' : 'Edit Details'}
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
+          </div>
+
+          {/* Tabs */}
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'details'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+                onClick={() => setActiveTab('details')}
+              >
+                Personal Details
+              </button>
+              <button
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'subjects'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+                onClick={() => setActiveTab('subjects')}
+              >
+                Subjects
+              </button>
+              <button
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'academic'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+                onClick={() => setActiveTab('academic')}
+              >
+                Academic Records
+              </button>
+            </nav>
+          </div>
+
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+              </svg>
+              {error}
+            </div>
+          )}
+
+          {activeTab === 'details' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h4>
+                <div className="space-y-4">
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Index Number</span>
+                    <span className="block text-sm text-gray-900 mt-1">{studentData.index_number}</span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Class</span>
+                    <span className="block text-sm text-gray-900 mt-1">{studentData.current_class}</span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Admission Year</span>
+                    <span className="block text-sm text-gray-900 mt-1">{studentData.admission_year}</span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Name with Initials</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.name_with_initials || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Address</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.address || 'Not provided'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-gray-900 mb-4">Parent/Guardian Information</h4>
+                <div className="space-y-4">
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Mother's Name</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.mother_name || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Mother's Phone</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.mother_phone || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Father's Name</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.father_name || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Father's Phone</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.father_phone || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Guardian's Name</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.guardian_name || 'Not provided'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Guardian's Phone</span>
+                    <span className="block text-sm text-gray-900 mt-1">
+                      {studentData.guardian_phone || 'Not provided'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'subjects' && (
+            <StudentSubjects studentId={student.id} />
+          )}
+
+          {activeTab === 'academic' && (
+            <div className="bg-gray-50 p-6 rounded-lg text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Academic Records</h3>
+              <p className="mt-1 text-sm text-gray-500">Academic records will be displayed here once marks are entered.</p>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+            <button 
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            >
+              Close
+            </button>
+            {activeTab === 'details' && (
+              <button 
+                onClick={() => setIsEditing(!isEditing)}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              >
+                {isEditing ? 'Cancel Edit' : 'Edit Details'}
+              </button>
+            )}
+          </div>
+
+          {isEditing && (
+            <StudentForm
+              initialData={studentData}
+              onSubmit={handleUpdate}
+              onCancel={() => setIsEditing(false)}
+            />
           )}
         </div>
-
-        {isEditing && (
-          <StudentForm
-            initialData={studentData}
-            onSubmit={handleUpdate}
-            onCancel={() => setIsEditing(false)}
-          />
-        )}
       </div>
     </div>
   );
