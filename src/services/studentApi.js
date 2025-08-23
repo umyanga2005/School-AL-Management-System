@@ -1,173 +1,197 @@
-// src/services/studentApi.js - FIXED VERSION
+// src/services/studentApi.js - ENHANCED VERSION WITH HELPER METHOD
 import apiService from './api';
 
-export const studentApi = {
-  getStudents: async (classFilter = '') => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
-      }
+class StudentApiService {
+  async getStudents(classFilter = '') {
+    const token = localStorage.getItem('token');
+    return apiService.getStudents(token, classFilter);
+  }
 
-      const url = classFilter 
-        ? `${apiService.endpoints.students}?class=${encodeURIComponent(classFilter)}`
-        : apiService.endpoints.students;
+  async createStudent(studentData) {
+    const token = localStorage.getItem('token');
+    return apiService.createStudent(token, studentData);
+  }
+
+  async updateStudent(studentId, studentData) {
+    const token = localStorage.getItem('token');
+    return apiService.updateStudent(token, studentId, studentData);
+  }
+
+  async deleteStudent(studentId) {
+    const token = localStorage.getItem('token');
+    return apiService.deleteStudent(token, studentId);
+  }
+
+  async promoteStudents(promotionData) {
+    const token = localStorage.getItem('token');
+    return apiService.promoteStudents(token, promotionData);
+  }
+
+  async getStudentSubjects(studentId, academicYear) {
+    const token = localStorage.getItem('token');
+    return apiService.getStudentSubjects(token, studentId, academicYear);
+  }
+
+  async assignStudentSubjects(studentId, assignmentData) {
+    const token = localStorage.getItem('token');
+    return apiService.assignStudentSubjects(token, studentId, assignmentData);
+  }
+
+  // NEW: Combined helper method for creating student with subjects
+  async createStudentWithSubjects(studentData, subjectIds, academicYear = new Date().getFullYear()) {
+    try {
+      console.log('StudentApi: Creating student with subjects...', {
+        studentData,
+        subjectIds,
+        academicYear
+      });
+
+      // Step 1: Create the student
+      const studentResult = await this.createStudent(studentData);
       
-      const response = await apiService.request(url, {
-        headers: apiService.getAuthHeaders(token)
-      });
-
-      return response;
-    } catch (error) {
-      console.error('Error in getStudents:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  getStudent: async (id) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
+      if (!studentResult.success) {
+        throw new Error(studentResult.error || 'Failed to create student');
       }
 
-      return await apiService.request(`${apiService.endpoints.students}/${id}`, {
-        headers: apiService.getAuthHeaders(token)
-      });
-    } catch (error) {
-      console.error('Error in getStudent:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  createStudent: async (studentData) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
+      const newStudent = studentResult.data?.student;
+      if (!newStudent || !newStudent.id) {
+        throw new Error('Invalid student creation response - missing student ID');
       }
 
-      return await apiService.request(apiService.endpoints.students, {
-        method: 'POST',
-        headers: apiService.getAuthHeaders(token),
-        body: JSON.stringify(studentData)
-      });
-    } catch (error) {
-      console.error('Error in createStudent:', error);
-      return { success: false, error: error.message };
-    }
-  },
+      console.log('StudentApi: Student created successfully:', newStudent);
 
-  updateStudent: async (id, studentData) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
+      // Step 2: Assign subjects if provided
+      if (subjectIds && subjectIds.length > 0) {
+        console.log('StudentApi: Assigning subjects to new student...', {
+          studentId: newStudent.id,
+          subjectIds,
+          academicYear
+        });
+
+        // Add a small delay to ensure database consistency
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const subjectResult = await this.assignStudentSubjects(newStudent.id, {
+          subject_ids: subjectIds,
+          academic_year: academicYear
+        });
+        
+        if (!subjectResult.success) {
+          console.warn('StudentApi: Subject assignment failed:', subjectResult.error);
+          // Return success for student creation but with warning about subjects
+          return {
+            success: true,
+            data: { 
+              student: newStudent,
+              subjectAssignmentFailed: true,
+              subjectAssignmentError: subjectResult.error
+            },
+            warning: `Student created successfully, but subject assignment failed: ${subjectResult.error}`
+          };
+        }
+
+        console.log('StudentApi: Subjects assigned successfully');
+        
+        return {
+          success: true,
+          data: { 
+            student: newStudent,
+            subjectAssignmentSuccess: true,
+            assignedSubjects: subjectResult.data
+          },
+          message: 'Student and subjects created successfully'
+        };
+      } else {
+        console.log('StudentApi: No subjects to assign');
+        return {
+          success: true,
+          data: { student: newStudent },
+          message: 'Student created successfully (no subjects assigned)'
+        };
       }
 
-      return await apiService.request(`${apiService.endpoints.students}/${id}`, {
-        method: 'PUT',
-        headers: apiService.getAuthHeaders(token),
-        body: JSON.stringify(studentData)
-      });
     } catch (error) {
-      console.error('Error in updateStudent:', error);
-      return { success: false, error: error.message };
+      console.error('StudentApi: Error in createStudentWithSubjects:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to create student with subjects'
+      };
     }
-  },
+  }
 
-  deleteStudent: async (id) => {
+  // NEW: Combined helper method for updating student with subjects
+  async updateStudentWithSubjects(studentId, studentData, subjectIds, academicYear = new Date().getFullYear()) {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
-      }
-
-      return await apiService.request(`${apiService.endpoints.students}/${id}`, {
-        method: 'DELETE',
-        headers: apiService.getAuthHeaders(token)
+      console.log('StudentApi: Updating student with subjects...', {
+        studentId,
+        studentData,
+        subjectIds,
+        academicYear
       });
-    } catch (error) {
-      console.error('Error in deleteStudent:', error);
-      return { success: false, error: error.message };
-    }
-  },
 
-  promoteStudents: async (promotionData) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
-      }
-
-      return await apiService.request(`${apiService.endpoints.students}/promote-class`, {
-        method: 'POST',
-        headers: apiService.getAuthHeaders(token),
-        body: JSON.stringify(promotionData)
-      });
-    } catch (error) {
-      console.error('Error in promoteStudents:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  getStudentSubjects: async (studentId, academicYear) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
-      }
-
-      const url = academicYear
-        ? `${apiService.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
-        : `${apiService.endpoints.subjects}/students/${studentId}/subjects`;
+      // Step 1: Update the student
+      const studentResult = await this.updateStudent(studentId, studentData);
       
-      return await apiService.request(url, {
-        headers: apiService.getAuthHeaders(token)
-      });
-    } catch (error) {
-      console.error('Error in getStudentSubjects:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  getStudentSubjects: async (studentId, academicYear) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
+      if (!studentResult.success) {
+        throw new Error(studentResult.error || 'Failed to update student');
       }
 
-      const url = academicYear
-        ? `${apiService.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
-        : `${apiService.endpoints.subjects}/students/${studentId}/subjects`;
-      
-      return await apiService.request(url, {
-        headers: apiService.getAuthHeaders(token)
-      });
-    } catch (error) {
-      console.error('Error in getStudentSubjects:', error);
-      return { success: false, error: error.message };
-    }
-  },
+      console.log('StudentApi: Student updated successfully');
 
-  // src/services/studentApi.js - UPDATE THE assignStudentSubjects METHOD
-  assignStudentSubjects: async (studentId, assignmentData) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return { success: false, error: 'No authentication token found' };
+      // Step 2: Update subjects if provided
+      if (subjectIds && subjectIds.length >= 0) { // Allow empty array to clear subjects
+        console.log('StudentApi: Updating subjects for student...', {
+          studentId,
+          subjectIds,
+          academicYear
+        });
+        
+        const subjectResult = await this.assignStudentSubjects(studentId, {
+          subject_ids: subjectIds,
+          academic_year: academicYear
+        });
+        
+        if (!subjectResult.success) {
+          console.warn('StudentApi: Subject update failed:', subjectResult.error);
+          return {
+            success: true,
+            data: { 
+              student: studentResult.data?.student || studentResult.data,
+              subjectUpdateFailed: true,
+              subjectUpdateError: subjectResult.error
+            },
+            warning: `Student updated successfully, but subject update failed: ${subjectResult.error}`
+          };
+        }
+
+        console.log('StudentApi: Subjects updated successfully');
+        
+        return {
+          success: true,
+          data: { 
+            student: studentResult.data?.student || studentResult.data,
+            subjectUpdateSuccess: true,
+            assignedSubjects: subjectResult.data
+          },
+          message: 'Student and subjects updated successfully'
+        };
+      } else {
+        console.log('StudentApi: No subjects to update');
+        return {
+          success: true,
+          data: { student: studentResult.data?.student || studentResult.data },
+          message: 'Student updated successfully (subjects unchanged)'
+        };
       }
 
-      // Use the students endpoint with student ID
-      return await apiService.request(`${apiService.endpoints.students}/${studentId}/subjects`, {
-        method: 'POST',
-        headers: apiService.getAuthHeaders(token),
-        body: JSON.stringify(assignmentData)
-      });
     } catch (error) {
-      console.error('Error in assignStudentSubjects:', error);
-      return { success: false, error: error.message };
+      console.error('StudentApi: Error in updateStudentWithSubjects:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to update student with subjects'
+      };
     }
-  },
-};
+  }
+}
+
+export const studentApi = new StudentApiService();
