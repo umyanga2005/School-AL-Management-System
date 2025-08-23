@@ -1,4 +1,4 @@
-// src/services/studentApi.js - UPDATED WITH INDEX_NUMBER METHOD
+// src/services/studentApi.js - FIXED VERSION
 import apiService from './api';
 
 class StudentApiService {
@@ -37,7 +37,7 @@ class StudentApiService {
     return apiService.assignStudentSubjects(token, studentId, assignmentData);
   }
 
-  // NEW: Method to assign subjects using index_number directly
+  // FIXED: Use apiService consistently
   async assignStudentSubjectsByIndexNumber(indexNumber, subjectIds, academicYear) {
     try {
       console.log('StudentApi: Assigning subjects by index_number...', {
@@ -51,12 +51,10 @@ class StudentApiService {
         throw new Error('Authentication token not found');
       }
 
-      const response = await fetch('/api/students/subjects/assign-by-index', {
+      // Use apiService.request method for consistency
+      const response = await apiService.request(`${apiService.endpoints.students}/subjects/assign-by-index`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: apiService.getAuthHeaders(token),
         body: JSON.stringify({
           index_number: indexNumber,
           subject_ids: subjectIds,
@@ -64,21 +62,19 @@ class StudentApiService {
         })
       });
 
-      const result = await response.json();
-      
-      if (!response.ok) {
-        console.error('Subject assignment failed:', result);
+      if (!response.success) {
+        console.error('Subject assignment failed:', response.error);
         return {
           success: false,
-          error: result.error || `HTTP ${response.status}: ${response.statusText}`
+          error: response.error || 'Failed to assign subjects'
         };
       }
 
-      console.log('Subject assignment successful:', result);
+      console.log('Subject assignment successful:', response);
       return {
         success: true,
-        data: result.data || result,
-        message: result.message || 'Subjects assigned successfully'
+        data: response.data,
+        message: 'Subjects assigned successfully'
       };
 
     } catch (error) {
@@ -90,7 +86,62 @@ class StudentApiService {
     }
   }
 
-  // KEPT: Combined helper method for creating student with subjects (legacy support)
+  // UPDATED: Separate methods for better error handling
+  async createStudentOnly(studentData) {
+    try {
+      console.log('StudentApi: Creating student (basic info only)...');
+      
+      const result = await this.createStudent(studentData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create student');
+      }
+
+      console.log('StudentApi: Student created successfully:', result.data?.student);
+      
+      return {
+        success: true,
+        data: result.data,
+        message: 'Student created successfully'
+      };
+
+    } catch (error) {
+      console.error('StudentApi: Error creating student:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to create student'
+      };
+    }
+  }
+
+  async updateStudentOnly(studentId, studentData) {
+    try {
+      console.log('StudentApi: Updating student (basic info only)...');
+      
+      const result = await this.updateStudent(studentId, studentData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update student');
+      }
+
+      console.log('StudentApi: Student updated successfully');
+      
+      return {
+        success: true,
+        data: result.data,
+        message: 'Student updated successfully'
+      };
+
+    } catch (error) {
+      console.error('StudentApi: Error updating student:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to update student'
+      };
+    }
+  }
+
+  // UPDATED: For backward compatibility, but now handles errors better
   async createStudentWithSubjects(studentData, subjectIds, academicYear = new Date().getFullYear()) {
     try {
       console.log('StudentApi: Creating student with subjects...', {
@@ -100,25 +151,26 @@ class StudentApiService {
       });
 
       // Step 1: Create the student
-      const studentResult = await this.createStudent(studentData);
+      const studentResult = await this.createStudentOnly(studentData);
       
       if (!studentResult.success) {
-        throw new Error(studentResult.error || 'Failed to create student');
+        return studentResult; // Return the error immediately
       }
 
       const newStudent = studentResult.data?.student;
-      if (!newStudent || !newStudent.id) {
-        throw new Error('Invalid student creation response - missing student ID');
+      if (!newStudent) {
+        return {
+          success: false,
+          error: 'Invalid student creation response'
+        };
       }
 
-      console.log('StudentApi: Student created successfully:', newStudent);
-
-      // Step 2: Assign subjects using index_number if provided
+      // Step 2: Assign subjects if provided
       if (subjectIds && subjectIds.length > 0) {
         console.log('StudentApi: Assigning subjects to new student...');
 
-        // Add a small delay to ensure database consistency
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Add a delay for database consistency
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         const subjectResult = await this.assignStudentSubjectsByIndexNumber(
           studentData.index_number,
@@ -128,20 +180,17 @@ class StudentApiService {
         
         if (!subjectResult.success) {
           console.warn('StudentApi: Subject assignment failed:', subjectResult.error);
-          // Return success for student creation but with warning about subjects
           return {
-            success: true,
+            success: true, // Student was created successfully
             data: { 
               student: newStudent,
               subjectAssignmentFailed: true,
               subjectAssignmentError: subjectResult.error
             },
-            warning: `Student created successfully, but subject assignment failed: ${subjectResult.error}`
+            warning: `Student created successfully, but subject assignment failed: ${subjectResult.error}. You can assign subjects later.`
           };
         }
 
-        console.log('StudentApi: Subjects assigned successfully');
-        
         return {
           success: true,
           data: { 
@@ -151,14 +200,13 @@ class StudentApiService {
           },
           message: 'Student and subjects created successfully'
         };
-      } else {
-        console.log('StudentApi: No subjects to assign');
-        return {
-          success: true,
-          data: { student: newStudent },
-          message: 'Student created successfully (no subjects assigned)'
-        };
       }
+
+      return {
+        success: true,
+        data: { student: newStudent },
+        message: 'Student created successfully (no subjects assigned)'
+      };
 
     } catch (error) {
       console.error('StudentApi: Error in createStudentWithSubjects:', error);
@@ -169,7 +217,6 @@ class StudentApiService {
     }
   }
 
-  // KEPT: Combined helper method for updating student with subjects (legacy support)
   async updateStudentWithSubjects(studentId, studentData, subjectIds, academicYear = new Date().getFullYear()) {
     try {
       console.log('StudentApi: Updating student with subjects...', {
@@ -180,16 +227,14 @@ class StudentApiService {
       });
 
       // Step 1: Update the student
-      const studentResult = await this.updateStudent(studentId, studentData);
+      const studentResult = await this.updateStudentOnly(studentId, studentData);
       
       if (!studentResult.success) {
-        throw new Error(studentResult.error || 'Failed to update student');
+        return studentResult; // Return the error immediately
       }
 
-      console.log('StudentApi: Student updated successfully');
-
-      // Step 2: Update subjects using index_number if provided
-      if (subjectIds && subjectIds.length >= 0) { // Allow empty array to clear subjects
+      // Step 2: Update subjects if provided
+      if (subjectIds !== undefined && subjectIds !== null) { // Allow empty array to clear subjects
         console.log('StudentApi: Updating subjects for student...');
         
         const subjectResult = await this.assignStudentSubjectsByIndexNumber(
@@ -201,18 +246,16 @@ class StudentApiService {
         if (!subjectResult.success) {
           console.warn('StudentApi: Subject update failed:', subjectResult.error);
           return {
-            success: true,
+            success: true, // Student was updated successfully
             data: { 
               student: studentResult.data?.student || studentResult.data,
               subjectUpdateFailed: true,
               subjectUpdateError: subjectResult.error
             },
-            warning: `Student updated successfully, but subject update failed: ${subjectResult.error}`
+            warning: `Student updated successfully, but subject update failed: ${subjectResult.error}. You can update subjects later.`
           };
         }
 
-        console.log('StudentApi: Subjects updated successfully');
-        
         return {
           success: true,
           data: { 
@@ -222,14 +265,13 @@ class StudentApiService {
           },
           message: 'Student and subjects updated successfully'
         };
-      } else {
-        console.log('StudentApi: No subjects to update');
-        return {
-          success: true,
-          data: { student: studentResult.data?.student || studentResult.data },
-          message: 'Student updated successfully (subjects unchanged)'
-        };
       }
+
+      return {
+        success: true,
+        data: { student: studentResult.data?.student || studentResult.data },
+        message: 'Student updated successfully (subjects unchanged)'
+      };
 
     } catch (error) {
       console.error('StudentApi: Error in updateStudentWithSubjects:', error);
