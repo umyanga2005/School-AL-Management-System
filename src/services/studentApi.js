@@ -1,4 +1,4 @@
-// src/services/studentApi.js - ENHANCED VERSION WITH HELPER METHOD
+// src/services/studentApi.js - UPDATED WITH INDEX_NUMBER METHOD
 import apiService from './api';
 
 class StudentApiService {
@@ -37,7 +37,60 @@ class StudentApiService {
     return apiService.assignStudentSubjects(token, studentId, assignmentData);
   }
 
-  // NEW: Combined helper method for creating student with subjects
+  // NEW: Method to assign subjects using index_number directly
+  async assignStudentSubjectsByIndexNumber(indexNumber, subjectIds, academicYear) {
+    try {
+      console.log('StudentApi: Assigning subjects by index_number...', {
+        indexNumber,
+        subjectIds,
+        academicYear
+      });
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const response = await fetch('/api/students/subjects/assign-by-index', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          index_number: indexNumber,
+          subject_ids: subjectIds,
+          academic_year: academicYear
+        })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        console.error('Subject assignment failed:', result);
+        return {
+          success: false,
+          error: result.error || `HTTP ${response.status}: ${response.statusText}`
+        };
+      }
+
+      console.log('Subject assignment successful:', result);
+      return {
+        success: true,
+        data: result.data || result,
+        message: result.message || 'Subjects assigned successfully'
+      };
+
+    } catch (error) {
+      console.error('StudentApi: Error in assignStudentSubjectsByIndexNumber:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to assign subjects'
+      };
+    }
+  }
+
+  // KEPT: Combined helper method for creating student with subjects (legacy support)
   async createStudentWithSubjects(studentData, subjectIds, academicYear = new Date().getFullYear()) {
     try {
       console.log('StudentApi: Creating student with subjects...', {
@@ -60,21 +113,18 @@ class StudentApiService {
 
       console.log('StudentApi: Student created successfully:', newStudent);
 
-      // Step 2: Assign subjects if provided
+      // Step 2: Assign subjects using index_number if provided
       if (subjectIds && subjectIds.length > 0) {
-        console.log('StudentApi: Assigning subjects to new student...', {
-          studentId: newStudent.id,
-          subjectIds,
-          academicYear
-        });
+        console.log('StudentApi: Assigning subjects to new student...');
 
         // Add a small delay to ensure database consistency
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        const subjectResult = await this.assignStudentSubjects(newStudent.id, {
-          subject_ids: subjectIds,
-          academic_year: academicYear
-        });
+        const subjectResult = await this.assignStudentSubjectsByIndexNumber(
+          studentData.index_number,
+          subjectIds,
+          academicYear
+        );
         
         if (!subjectResult.success) {
           console.warn('StudentApi: Subject assignment failed:', subjectResult.error);
@@ -119,7 +169,7 @@ class StudentApiService {
     }
   }
 
-  // NEW: Combined helper method for updating student with subjects
+  // KEPT: Combined helper method for updating student with subjects (legacy support)
   async updateStudentWithSubjects(studentId, studentData, subjectIds, academicYear = new Date().getFullYear()) {
     try {
       console.log('StudentApi: Updating student with subjects...', {
@@ -138,18 +188,15 @@ class StudentApiService {
 
       console.log('StudentApi: Student updated successfully');
 
-      // Step 2: Update subjects if provided
+      // Step 2: Update subjects using index_number if provided
       if (subjectIds && subjectIds.length >= 0) { // Allow empty array to clear subjects
-        console.log('StudentApi: Updating subjects for student...', {
-          studentId,
+        console.log('StudentApi: Updating subjects for student...');
+        
+        const subjectResult = await this.assignStudentSubjectsByIndexNumber(
+          studentData.index_number,
           subjectIds,
           academicYear
-        });
-        
-        const subjectResult = await this.assignStudentSubjects(studentId, {
-          subject_ids: subjectIds,
-          academic_year: academicYear
-        });
+        );
         
         if (!subjectResult.success) {
           console.warn('StudentApi: Subject update failed:', subjectResult.error);

@@ -1,4 +1,4 @@
-// src/components/students/StudentForm.jsx - FIXED FOR INDEX_NUMBER
+// src/components/students/StudentForm.jsx - FIXED FOR PROPER REGISTRATION
 import React, { useState, useEffect } from 'react';
 import { subjectApi, studentApi } from '../../services';
 
@@ -137,58 +137,6 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // NEW: Helper function to create student with subjects in one transaction
-  const createStudentWithSubjects = async (studentData, subjectIds) => {
-    try {
-      console.log('Creating student with integrated subjects...', {
-        studentData,
-        subjectIds
-      });
-
-      // Create the student first
-      setSubmissionStatus('Creating student...');
-      const studentResult = await studentApi.createStudent(studentData);
-      
-      if (!studentResult.success) {
-        throw new Error(studentResult.error || 'Failed to create student');
-      }
-
-      const newStudent = studentResult.data?.student;
-      if (!newStudent || !newStudent.id) {
-        throw new Error('Invalid student creation response');
-      }
-
-      console.log('Student created successfully:', newStudent);
-
-      // Now assign subjects using the student ID
-      if (subjectIds && subjectIds.length > 0) {
-        setSubmissionStatus('Assigning subjects...');
-        
-        // Wait a moment for database consistency
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        const subjectAssignmentResult = await studentApi.assignStudentSubjects(newStudent.id, {
-          subject_ids: subjectIds,
-          academic_year: new Date().getFullYear()
-        });
-        
-        console.log('Subject assignment result:', subjectAssignmentResult);
-        
-        if (!subjectAssignmentResult.success) {
-          // Student was created but subjects failed - show warning but don't fail completely
-          console.warn('Subject assignment failed:', subjectAssignmentResult.error);
-          alert(`Student was created successfully, but there was an issue assigning subjects: ${subjectAssignmentResult.error}\n\nYou can assign subjects later from the student details page.`);
-        }
-      }
-
-      return { success: true, data: { student: newStudent } };
-    } catch (error) {
-      console.error('Error in createStudentWithSubjects:', error);
-      throw error;
-    }
-  };
-
-  // Simplified handleSubmit function for StudentForm.jsx using the enhanced studentApi
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -198,68 +146,97 @@ const StudentForm = ({ onSubmit, onCancel, initialData }) => {
     setSubmissionStatus('');
     
     try {
-      // Extract subject_ids from form data
+      // Separate student data from subject data
       const { subject_ids, ...studentData } = formData;
       const academicYear = new Date().getFullYear();
       
       console.log('Starting student submission process...', {
         isEditing: !!initialData?.id,
         studentData,
-        subjectIds: subject_ids
+        subjectIds: subject_ids,
+        indexNumber: studentData.index_number
       });
 
-      let result;
-      
       if (initialData?.id) {
         // EDITING EXISTING STUDENT
-        setSubmissionStatus('Updating student and subjects...');
-        result = await studentApi.updateStudentWithSubjects(
-          initialData.id, 
-          studentData, 
-          subject_ids, 
+        console.log('Updating existing student...');
+        
+        // Step 1: Update student basic info
+        setSubmissionStatus('Updating student information...');
+        const studentResult = await studentApi.updateStudent(initialData.id, studentData);
+        
+        if (!studentResult.success) {
+          throw new Error(studentResult.error || 'Failed to update student');
+        }
+
+        // Step 2: Update subjects using index_number
+        setSubmissionStatus('Updating subject assignments...');
+        const subjectResult = await studentApi.assignStudentSubjectsByIndexNumber(
+          studentData.index_number,
+          subject_ids,
           academicYear
         );
+
+        if (!subjectResult.success) {
+          console.warn('Subject update failed:', subjectResult.error);
+          alert(`Student updated successfully, but subject update failed: ${subjectResult.error}\n\nYou can update subjects later from the student details page.`);
+        }
+
+        setSubmissionStatus('Student updated successfully!');
+        
       } else {
         // CREATING NEW STUDENT
-        setSubmissionStatus('Creating student and assigning subjects...');
-        result = await studentApi.createStudentWithSubjects(
-          studentData, 
-          subject_ids, 
-          academicYear
-        );
-      }
-      
-      if (result.success) {
-        // Handle warnings (subject assignment issues)
-        if (result.warning) {
-          alert(result.warning);
+        console.log('Creating new student...');
+        
+        // Step 1: Create student
+        setSubmissionStatus('Creating student...');
+        const studentResult = await studentApi.createStudent(studentData);
+        
+        if (!studentResult.success) {
+          throw new Error(studentResult.error || 'Failed to create student');
         }
-        
-        setSubmissionStatus(
-          result.message || 
-          (initialData ? 'Student updated successfully!' : 'Student created successfully!')
-        );
-        
-        // Call parent callback if provided
-        if (onSubmit) {
-          try {
-            await onSubmit(studentData);
-          } catch (parentError) {
-            console.error('Parent callback error:', parentError);
-            // Don't fail the whole operation if parent callback fails
+
+        const newStudent = studentResult.data?.student;
+        console.log('Student created:', newStudent);
+
+        // Step 2: Assign subjects using index_number
+        if (subject_ids && subject_ids.length > 0) {
+          setSubmissionStatus('Assigning subjects...');
+          
+          // Small delay for database consistency
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          const subjectResult = await studentApi.assignStudentSubjectsByIndexNumber(
+            studentData.index_number,
+            subject_ids,
+            academicYear
+          );
+          
+          if (!subjectResult.success) {
+            console.warn('Subject assignment failed:', subjectResult.error);
+            alert(`Student created successfully, but subject assignment failed: ${subjectResult.error}\n\nYou can assign subjects later from the student details page.`);
           }
         }
 
-        // Success - close form after a brief delay
-        setTimeout(() => {
-          if (onCancel) {
-            onCancel();
-          }
-        }, 1500);
-      } else {
-        setErrors({ submit: result.error || 'Failed to save student' });
-        setSubmissionStatus('');
+        setSubmissionStatus('Student created successfully!');
       }
+
+      // Call parent callback if provided
+      if (onSubmit) {
+        try {
+          await onSubmit(studentData);
+        } catch (parentError) {
+          console.error('Parent callback error:', parentError);
+          // Don't fail the whole operation if parent callback fails
+        }
+      }
+
+      // Success - close form after a brief delay
+      setTimeout(() => {
+        if (onCancel) {
+          onCancel();
+        }
+      }, 1500);
 
     } catch (error) {
       console.error('Form submission error:', error);

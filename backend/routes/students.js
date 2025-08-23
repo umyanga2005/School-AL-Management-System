@@ -1,4 +1,4 @@
-// backend/routes/students.js - FIXED VERSION
+// backend/routes/students.js - UPDATED WITH INDEX_NUMBER SUBJECT ASSIGNMENT
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
@@ -80,7 +80,7 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/students - Create new student (Updated with debugging)
+// POST /api/students - Create new student
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { index_number, name, name_with_initials, address, mother_name, father_name, guardian_name,
@@ -135,7 +135,6 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     
     console.log('Student created successfully:', result.rows[0]);
     
-    // IMPORTANT: Make sure response structure matches what frontend expects
     res.status(201).json({ 
       success: true, 
       data: {
@@ -313,13 +312,13 @@ router.post('/promote-class', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/students/:id/subjects - Assign subjects to a student (FIXED VERSION)
+// POST /api/students/:id/subjects - Assign subjects to a student (LEGACY - uses student ID)
 router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { subject_ids, academic_year } = req.body;
     
-    console.log('Assigning subjects to student:', { 
+    console.log('Assigning subjects to student (legacy method):', { 
       studentId: id, 
       subject_ids, 
       academic_year,
@@ -427,5 +426,126 @@ router.post('/:id/subjects', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// NEW: POST /api/students/subjects/assign-by-index - Assign subjects using index_number directly
+router.post('/subjects/assign-by-index', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { index_number, subject_ids, academic_year } = req.body;
+    
+    console.log('Assigning subjects by index_number:', { 
+      index_number, 
+      subject_ids, 
+      academic_year,
+      subjectCount: subject_ids?.length 
+    });
+    
+    // Validate input
+    if (!index_number) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Index number is required' 
+      });
+    }
+    
+    if (!subject_ids || !Array.isArray(subject_ids)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Subject IDs array is required' 
+      });
+    }
+    
+    if (!academic_year) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Academic year is required' 
+      });
+    }
+    
+    // Check if student exists
+    const studentCheck = await db.execute(
+      'SELECT index_number, name FROM students WHERE index_number = $1 AND status = \'active\'', 
+      [index_number]
+    );
+    
+    if (studentCheck.rows.length === 0) {
+      console.log('Student not found with index_number:', index_number);
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+    
+    console.log('Student found:', studentCheck.rows[0]);
+    
+    // Begin transaction
+    await db.execute('BEGIN');
+    
+    try {
+      // Delete existing subject assignments for this student and academic year
+      const deleteResult = await db.execute(
+        'DELETE FROM student_subjects WHERE index_number = $1 AND academic_year = $2',
+        [index_number, academic_year]
+      );
+      
+      console.log('Deleted existing assignments, rows affected:', deleteResult.rowCount);
+      
+      // Insert new subject assignments (if any)
+      let insertedCount = 0;
+      if (subject_ids.length > 0) {
+        for (const subjectId of subject_ids) {
+          // Check if subject exists
+          const subjectCheck = await db.execute('SELECT id, subject_name FROM subjects WHERE id = $1', [subjectId]);
+          if (subjectCheck.rows.length === 0) {
+            console.log('Subject not found:', subjectId);
+            await db.execute('ROLLBACK');
+            return res.status(400).json({ 
+              success: false, 
+              error: `Subject with ID ${subjectId} not found` 
+            });
+          }
+          
+          console.log('Inserting subject assignment:', {
+            indexNumber: index_number,
+            subjectId: subjectId,
+            subjectName: subjectCheck.rows[0].subject_name,
+            academicYear: academic_year
+          });
+          
+          const insertResult = await db.execute(
+            'INSERT INTO student_subjects (index_number, subject_id, academic_year) VALUES ($1, $2, $3)',
+            [index_number, subjectId, academic_year]
+          );
+          
+          insertedCount++;
+          console.log('Subject assignment inserted, rows affected:', insertResult.rowCount);
+        }
+      }
+      
+      await db.execute('COMMIT');
+      
+      console.log(`Successfully processed ${insertedCount} subject assignments for student:`, index_number);
+      
+      res.json({ 
+        success: true, 
+        data: {
+          assignedCount: insertedCount,
+          indexNumber: index_number,
+          academicYear: academic_year,
+          subjectIds: subject_ids
+        },
+        message: insertedCount > 0 
+          ? `Successfully assigned ${insertedCount} subjects to student` 
+          : 'Successfully cleared all subject assignments for student'
+      });
+    } catch (error) {
+      await db.execute('ROLLBACK');
+      console.error('Transaction error:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error assigning subjects by index_number:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: 'Check server logs for more information'
+    });
+  }
+});
 
 module.exports = router;

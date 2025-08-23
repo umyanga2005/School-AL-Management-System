@@ -1,7 +1,7 @@
-// src/services/api.js (updated with enhanced error handling)
+// src/services/api.js - UPDATED TO WORK WITH EXISTING STRUCTURE
 class ApiService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL;
+    this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
 
     this.endpoints = {
       auth: {
@@ -177,6 +177,19 @@ class ApiService {
       method: 'POST',
       headers: this.getAuthHeaders(token),
       body: JSON.stringify(promotionData)
+    });
+  }
+
+  // NEW: Method needed by StudentForm.jsx - Assign subjects by index_number
+  async assignStudentSubjectsByIndexNumber(token, indexNumber, subjectIds, academicYear) {
+    return this.request(`${this.endpoints.students}/subjects/assign-by-index`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify({
+        index_number: indexNumber,
+        subject_ids: subjectIds,
+        academic_year: academicYear
+      })
     });
   }
 
