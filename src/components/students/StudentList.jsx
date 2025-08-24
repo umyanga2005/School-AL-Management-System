@@ -16,7 +16,9 @@ const StudentList = () => {
   const [editingStudent, setEditingStudent] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showPromotion, setShowPromotion] = useState(false);
-  const [searchTimeout, setSearchTimeout] = useState(null);
+  const [searchMode, setSearchMode] = useState(false); // Add this state
+  const [allStudentsForSearch, setAllStudentsForSearch] = useState([]); // Add this state
+
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -32,8 +34,13 @@ const StudentList = () => {
   const [admissionYears, setAdmissionYears] = useState([]);
 
   useEffect(() => {
+    if (searchMode) {
+      // Don't reload when in search mode
+      return;
+    }
     loadStudents();
-  }, [classFilter, yearFilter, currentPage]);
+  }, [classFilter, yearFilter, currentPage, searchMode]); // Add searchMode dependency
+
 
   useEffect(() => {
     // Extract unique admission years when students load
@@ -88,11 +95,59 @@ const StudentList = () => {
     }
   };
 
+  const loadAllStudentsForSearch = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Load all students without pagination for search
+      const response = await studentApi.getStudents(
+        classFilter, 
+        1, 
+        1000, // Large limit to get all students
+        yearFilter
+      );
+      
+      if (response.success) {
+        const studentsData = response.data?.students || response.data || [];
+        setAllStudentsForSearch(studentsData);
+        return studentsData;
+      } else {
+        setError(response.error || 'Failed to load students for search');
+        return [];
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to load students for search');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async (term) => {
+    setSearchTerm(term);
+    
+    if (term.trim() === '') {
+      // Clear search mode and reload paginated results
+      setSearchMode(false);
+      setAllStudentsForSearch([]);
+      loadStudents();
+    } else {
+      // Enter search mode and load all students
+      if (!searchMode) {
+        setSearchMode(true);
+        await loadAllStudentsForSearch();
+      }
+    }
+  };
+
   // Filter students based on search term (client-side filtering for search)
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.index_number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredStudents = searchMode && searchTerm.trim() !== '' 
+    ? allStudentsForSearch.filter(student => 
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.index_number.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : students;
 
   const handleStudentSubmit = async (studentData) => {
     try {
@@ -243,11 +298,32 @@ const StudentList = () => {
             type="text"
             placeholder="Search students by name or index number..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
       </div>
+
+      {/* Search results indicator */}
+      {searchMode && searchTerm && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span className="text-blue-800 text-sm">
+              Found {filteredStudents.length} students matching "{searchTerm}"
+              {classFilter || yearFilter ? ' (with current filters applied)' : ' (across all records)'}
+            </span>
+            <button 
+              onClick={() => handleSearch('')}
+              className="ml-auto text-blue-600 hover:text-blue-800 text-sm underline"
+            >
+              Clear search
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showForm && (
@@ -345,7 +421,7 @@ const StudentList = () => {
           </div>
 
           {/* Pagination Controls */}
-          {pagination.pages > 1 && (
+          {pagination.pages > 1 && !searchMode && (
             <div className="mt-8 flex items-center justify-between">
               <div className="text-sm text-gray-700">
                 Showing {((currentPage - 1) * studentsPerPage) + 1} to {Math.min(currentPage * studentsPerPage, pagination.total)} of {pagination.total} students
