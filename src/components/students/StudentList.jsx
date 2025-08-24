@@ -1,4 +1,4 @@
-// src/components/students/StudentList.jsx - UPDATED VERSION
+// src/components/students/StudentList.jsx - UPDATED WITH PAGINATION AND YEAR FILTER
 import React, { useState, useEffect } from 'react';
 import { studentApi } from '../../services/studentApi';
 import StudentForm from './StudentForm';
@@ -10,79 +10,124 @@ const StudentList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [classFilter, setClassFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingStudent, setEditingStudent] = useState(null); // Changed from selectedStudent to editingStudent
-  const [selectedStudent, setSelectedStudent] = useState(null); // For viewing details
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [showPromotion, setShowPromotion] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [studentsPerPage] = useState(8);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 8,
+    total: 0,
+    pages: 0
+  });
 
   const classes = ['12A1', '12A2', '12B1', '12B2', '13A1', '13A2', '13B1', '13B2'];
+  const [admissionYears, setAdmissionYears] = useState([]);
 
   useEffect(() => {
     loadStudents();
-  }, [classFilter]);
+  }, [classFilter, yearFilter, currentPage]);
+
+  useEffect(() => {
+    // Extract unique admission years when students load
+    const years = [...new Set(students.map(student => student.admission_year))].sort((a, b) => b - a);
+    setAdmissionYears(years);
+  }, [students]);
 
   const loadStudents = async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await studentApi.getStudents(classFilter);
+      const response = await studentApi.getStudents(
+        classFilter, 
+        currentPage, 
+        studentsPerPage, 
+        yearFilter
+      );
       
       // Handle different response structures
       if (response.success) {
-        setStudents(response.data?.students || response.data || []);
+        const studentsData = response.data?.students || response.data || [];
+        const paginationData = response.data?.pagination || {
+          page: currentPage,
+          limit: studentsPerPage,
+          total: studentsData.length,
+          pages: Math.ceil(studentsData.length / studentsPerPage)
+        };
+        
+        setStudents(studentsData);
+        setPagination(paginationData);
       } else {
         setError(response.error || 'Failed to load students');
         setStudents([]);
+        setPagination({
+          page: 1,
+          limit: studentsPerPage,
+          total: 0,
+          pages: 0
+        });
       }
     } catch (err) {
       setError(err.message || 'Failed to load students');
       setStudents([]);
+      setPagination({
+        page: 1,
+        limit: studentsPerPage,
+        total: 0,
+        pages: 0
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // UPDATED: This is the key change - handleStudentSubmit function
+  // Filter students based on search term (client-side filtering for search)
+  const filteredStudents = students.filter(student => 
+    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.index_number.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const handleStudentSubmit = async (studentData) => {
     try {
       setError('');
       let result;
       
       if (editingStudent) {
-        // Update existing student
         result = await studentApi.updateStudent(editingStudent.id, studentData);
       } else {
-        // Create new student
         result = await studentApi.createStudent(studentData);
       }
       
       if (result.success) {
-        // Refresh the student list
         await loadStudents();
-        return result; // Return the result so StudentForm can use it
+        return result;
       } else {
         throw new Error(result.error || 'Failed to save student');
       }
     } catch (error) {
       console.error('Error saving student:', error);
       setError(error.message || 'Failed to save student');
-      throw error; // Re-throw so StudentForm can handle it
+      throw error;
     }
   };
 
-  // UPDATED: Form cancel handler
   const handleFormCancel = () => {
     setShowForm(false);
     setEditingStudent(null);
-    setError(''); // Clear any errors
+    setError('');
   };
 
-  // NEW: Handle edit student
   const handleEditStudent = (student) => {
     setEditingStudent(student);
     setShowForm(true);
-    setSelectedStudent(null); // Close details view if open
+    setSelectedStudent(null);
   };
 
   const handleDeleteStudent = async (id) => {
@@ -102,12 +147,6 @@ const StudentList = () => {
     }
   };
 
-  // Filter students based on search term
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.index_number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -126,8 +165,24 @@ const StudentList = () => {
         </div>
         <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2">
           <select 
+            value={yearFilter} 
+            onChange={(e) => {
+              setYearFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">All Years</option>
+            {admissionYears.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+          <select 
             value={classFilter} 
-            onChange={(e) => setClassFilter(e.target.value)}
+            onChange={(e) => {
+              setClassFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">All Classes</option>
@@ -137,7 +192,7 @@ const StudentList = () => {
           </select>
           <button 
             onClick={() => {
-              setEditingStudent(null); // Make sure we're in create mode
+              setEditingStudent(null);
               setShowForm(true);
             }} 
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors duration-200 flex items-center"
@@ -194,12 +249,12 @@ const StudentList = () => {
         </div>
       </div>
 
-      {/* Modals - UPDATED */}
+      {/* Modals */}
       {showForm && (
         <StudentForm
-          initialData={editingStudent} // Pass editing student data if available
-          onSubmit={handleStudentSubmit} // Use the updated submit handler
-          onCancel={handleFormCancel} // Use the updated cancel handler
+          initialData={editingStudent}
+          onSubmit={handleStudentSubmit}
+          onCancel={handleFormCancel}
         />
       )}
 
@@ -220,74 +275,124 @@ const StudentList = () => {
 
       {/* Students Grid */}
       {filteredStudents.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredStudents.map((student) => (
-            <div key={student.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
-              <div className="p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-sm font-medium text-blue-600">
-                        {student.name.charAt(0).toUpperCase()}
-                      </span>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredStudents.map((student) => (
+              <div key={student.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
+                <div className="p-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="flex-shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-600">
+                          {student.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {student.name}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Index: {student.index_number}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {student.name}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Index: {student.index_number}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    Class: {student.current_class}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      Class: {student.current_class}
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a4 4 0 118 0v4m-4 0v8m-6 0h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Admission: {student.admission_year}
+                    </div>
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a4 4 0 118 0v4m-4 0v8m-6 0h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Admission: {student.admission_year}
-                  </div>
-                </div>
 
-                {/* UPDATED: Action buttons with edit functionality */}
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={() => setSelectedStudent(student)}
-                    className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-                  >
-                    View Details
-                  </button>
-                  <button 
-                    onClick={() => handleEditStudent(student)}
-                    className="flex-shrink-0 bg-green-50 hover:bg-green-100 text-green-600 p-2 rounded-md transition-colors duration-200"
-                    title="Edit Student"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteStudent(student.id)}
-                    className="flex-shrink-0 bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-md transition-colors duration-200"
-                    title="Delete Student"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => setSelectedStudent(student)}
+                      className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+                    >
+                      View Details
+                    </button>
+                    <button 
+                      onClick={() => handleEditStudent(student)}
+                      className="flex-shrink-0 bg-green-50 hover:bg-green-100 text-green-600 p-2 rounded-md transition-colors duration-200"
+                      title="Edit Student"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteStudent(student.id)}
+                      className="flex-shrink-0 bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-md transition-colors duration-200"
+                      title="Delete Student"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          {pagination.pages > 1 && (
+            <div className="mt-8 flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Showing {((currentPage - 1) * studentsPerPage) + 1} to {Math.min(currentPage * studentsPerPage, pagination.total)} of {pagination.total} students
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1 rounded-md ${
+                    currentPage === 1 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                {/* Page numbers */}
+                {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(number => (
+                  <button
+                    key={number}
+                    onClick={() => setCurrentPage(number)}
+                    className={`px-3 py-1 rounded-md ${
+                      currentPage === number
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    {number}
+                  </button>
+                ))}
+                
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === pagination.pages}
+                  className={`px-3 py-1 rounded-md ${
+                    currentPage === pagination.pages
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       ) : (
         <div className="text-center py-12">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -297,12 +402,12 @@ const StudentList = () => {
           <p className="mt-1 text-sm text-gray-500">
             {searchTerm 
               ? `No students match "${searchTerm}"`
-              : classFilter 
-                ? `No students found in class ${classFilter}`
+              : classFilter || yearFilter
+                ? `No students found with the selected filters`
                 : 'Get started by adding your first student'
             }
           </p>
-          {!searchTerm && !classFilter && (
+          {!searchTerm && !classFilter && !yearFilter && (
             <div className="mt-6">
               <button 
                 onClick={() => {
@@ -319,14 +424,14 @@ const StudentList = () => {
       )}
 
       {/* Statistics */}
-      {filteredStudents.length > 0 && (
+      {students.length > 0 && (
         <div className="mt-8 bg-gray-50 rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Statistics</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{filteredStudents.length}</div>
+              <div className="text-2xl font-bold text-blue-600">{pagination.total}</div>
               <div className="text-sm text-gray-500">
-                {searchTerm || classFilter ? 'Filtered' : 'Total'} Students
+                {searchTerm || classFilter || yearFilter ? 'Filtered' : 'Total'} Students
               </div>
             </div>
             {classes.map(cls => (

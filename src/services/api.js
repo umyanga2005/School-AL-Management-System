@@ -139,9 +139,28 @@ class ApiService {
   }
 
   // Student management methods
-  async getStudents(token, classFilter = '') {
-    const url = classFilter 
-      ? `${this.endpoints.students}?class=${encodeURIComponent(classFilter)}`
+  async getStudents(token, classFilter = '', page = 1, limit = 10, yearFilter = '') {
+    const params = new URLSearchParams();
+    
+    if (classFilter) {
+      params.append('class', classFilter);
+    }
+    
+    if (page) {
+      params.append('page', page);
+    }
+    
+    if (limit) {
+      params.append('limit', limit);
+    }
+    
+    if (yearFilter) {
+      params.append('admission_year', yearFilter);
+    }
+    
+    const queryString = params.toString();
+    const url = queryString 
+      ? `${this.endpoints.students}?${queryString}`
       : this.endpoints.students;
     
     return this.request(url, {

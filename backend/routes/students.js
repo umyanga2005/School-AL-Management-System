@@ -45,7 +45,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// GET /api/students - Get all students
+// GET /api/students - Get all students with pagination and filtering
 router.get('/', requireAuth, async (req, res) => {
   try {
     let sql = `
@@ -59,21 +59,61 @@ router.get('/', requireAuth, async (req, res) => {
     
     const params = [];
     let paramCount = 0;
+    const conditions = [];
     
     // Admin can see all students, teachers/coordinators only see their assigned class
     if (req.user.role !== 'admin' && req.user.assignedClass) {
-      sql += ` AND current_class = $${++paramCount}`;
+      conditions.push(`current_class = $${++paramCount}`);
       params.push(req.user.assignedClass);
-    } else if (req.query.class) {
-      // Admin can filter by class if needed
-      sql += ` AND current_class = $${++paramCount}`;
+    }
+    
+    // Class filter
+    if (req.query.class) {
+      conditions.push(`current_class = $${++paramCount}`);
       params.push(req.query.class);
     }
     
-    sql += ' ORDER BY current_class, index_number';
+    // Admission year filter
+    if (req.query.admission_year) {
+      conditions.push(`admission_year = $${++paramCount}`);
+      params.push(req.query.admission_year);
+    }
+    
+    // Add conditions to SQL
+    if (conditions.length > 0) {
+      sql += ' AND ' + conditions.join(' AND ');
+    }
+    
+    // Get total count for pagination
+    let countSql = `SELECT COUNT(*) FROM students WHERE status = 'active'`;
+    if (conditions.length > 0) {
+      countSql += ' AND ' + conditions.join(' AND ');
+    }
+    
+    const countResult = await db.execute(countSql, params);
+    const totalCount = parseInt(countResult.rows[0].count);
+    
+    // Add pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+    
+    sql += ` ORDER BY current_class, index_number`;
+    sql += ` LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(limit, offset);
     
     const result = await db.execute(sql, params);
-    res.json({ success: true, students: result.rows });
+    
+    res.json({ 
+      success: true, 
+      students: result.rows,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        pages: Math.ceil(totalCount / limit)
+      }
+    });
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ success: false, error: error.message });

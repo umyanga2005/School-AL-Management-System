@@ -2,9 +2,9 @@
 import apiService from './api';
 
 class StudentApiService {
-  async getStudents(classFilter = '') {
+  async getStudents(classFilter = '', page = 1, limit = 10, yearFilter = '') {
     const token = localStorage.getItem('token');
-    return apiService.getStudents(token, classFilter);
+    return apiService.getStudents(token, classFilter, page, limit, yearFilter);
   }
 
   async createStudent(studentData) {
