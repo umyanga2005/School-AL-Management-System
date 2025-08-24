@@ -235,6 +235,13 @@ class ApiService {
     });
   }
 
+  async deleteSubject(token, subjectId) {
+  return this.request(`${this.endpoints.subjects}/${subjectId}`, {
+    method: 'DELETE',
+    headers: this.getAuthHeaders(token)
+  });
+}
+
   async getStudentSubjects(token, studentId, academicYear) {
     const url = academicYear
       ? `${this.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`

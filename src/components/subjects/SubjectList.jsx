@@ -104,12 +104,35 @@ const SubjectList = () => {
       </div>
 
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center">
-          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
-        </svg>
-        {error}
-      </div>
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+            </svg>
+            <div className="flex-1">
+              <div className="font-medium">Error</div>
+              <div className="mt-1 text-sm">{error}</div>
+              {error.includes('assigned to') && (
+                <div className="mt-2 text-sm bg-red-100 border border-red-200 rounded p-2">
+                  <strong>Solution:</strong> Go to Student Management and remove this subject from all students first, then try deleting again.
+                </div>
+              )}
+              {error.includes('marks record') && (
+                <div className="mt-2 text-sm bg-red-100 border border-red-200 rounded p-2">
+                  <strong>Solution:</strong> Remove all marks entries for this subject first, then try deleting again.
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => setError('')}
+              className="ml-2 text-red-600 hover:text-red-800 flex-shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Filters */}
@@ -228,7 +251,7 @@ const SubjectList = () => {
                         <button 
                           onClick={() => handleDeleteSubject(subject.id)}
                           className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100 transition-colors duration-200"
-                          title="Delete Subject"
+                          title={`Delete ${subject.subject_name} (only if not assigned to students)`}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

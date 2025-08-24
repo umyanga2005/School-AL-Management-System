@@ -223,6 +223,97 @@ router.post('/students/:id/subjects', requireAuth, async (req, res) => {
   }
 });
 
+// DELETE /api/subjects/:id - Delete subject (with assignment check)
+router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('Attempting to delete subject with ID:', id);
+    
+    // Check if subject exists
+    const subjectCheck = await db.execute(
+      'SELECT id, subject_name FROM subjects WHERE id = $1', 
+      [id]
+    );
+    
+    if (subjectCheck.rows.length === 0) {
+      console.log('Subject not found:', id);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Subject not found' 
+      });
+    }
+    
+    const subject = subjectCheck.rows[0];
+    console.log('Found subject:', subject);
+    
+    // Check if subject is assigned to any students
+    const assignmentCheck = await db.execute(
+      'SELECT COUNT(*) as count FROM student_subjects WHERE subject_id = $1', 
+      [id]
+    );
+    
+    const assignmentCount = parseInt(assignmentCheck.rows[0].count);
+    console.log('Subject assignment count:', assignmentCount);
+    
+    if (assignmentCount > 0) {
+      console.log('Cannot delete subject - has assignments');
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot delete subject "${subject.subject_name}". It is assigned to ${assignmentCount} student(s). Please remove all student assignments first.`,
+        details: {
+          subjectName: subject.subject_name,
+          assignmentCount: assignmentCount
+        }
+      });
+    }
+    
+    // Check if subject has any marks records
+    const marksCheck = await db.execute(
+      'SELECT COUNT(*) as count FROM marks WHERE subject_id = $1', 
+      [id]
+    );
+    
+    const marksCount = parseInt(marksCheck.rows[0].count);
+    console.log('Subject marks count:', marksCount);
+    
+    if (marksCount > 0) {
+      console.log('Cannot delete subject - has marks records');
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot delete subject "${subject.subject_name}". It has ${marksCount} marks record(s). Please remove all marks first.`,
+        details: {
+          subjectName: subject.subject_name,
+          marksCount: marksCount
+        }
+      });
+    }
+    
+    // Safe to delete - soft delete by setting status to inactive
+    const deleteResult = await db.execute(
+      'UPDATE subjects SET status = \'inactive\', updated_at = NOW() WHERE id = $1 RETURNING id, subject_name',
+      [id]
+    );
+    
+    console.log('Subject deleted successfully:', deleteResult.rows[0]);
+    
+    res.json({ 
+      success: true, 
+      message: `Subject "${subject.subject_name}" deleted successfully`,
+      data: {
+        deletedSubject: deleteResult.rows[0]
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error deleting subject:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: 'Check server logs for more information'
+    });
+  }
+});
 
 
 module.exports = router;
