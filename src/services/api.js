@@ -1,4 +1,4 @@
-// src/services/api.js - UPDATED TO WORK WITH EXISTING STRUCTURE
+// src/services/api.js - UPDATED WITH MISSING METHODS
 class ApiService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
@@ -7,14 +7,17 @@ class ApiService {
       auth: {
         login: `${this.baseURL}/auth/login`,
         verify: `${this.baseURL}/auth/verify`,
-        changePassword: `${this.baseURL}/auth/change-password`
+        changePassword: `${this.baseURL}/auth/change-password`,
+        register: `${this.baseURL}/auth/register`
       },
       users: `${this.baseURL}/users`,
       attendance: `${this.baseURL}/attendance`,
       students: `${this.baseURL}/students`,
       subjects: `${this.baseURL}/subjects`,
       terms: `${this.baseURL}/terms`,
-      marks: `${this.baseURL}/marks`
+      marks: `${this.baseURL}/marks`,
+      classes: `${this.baseURL}/classes`,
+      reports: `${this.baseURL}/reports`
     };
   }
 
@@ -80,10 +83,18 @@ class ApiService {
     }
   }
 
+  // Auth methods
   async login(credentials) {
     return this.request(this.endpoints.auth.login, {
       method: 'POST',
       body: JSON.stringify(credentials)
+    });
+  }
+
+  async register(userData) {
+    return this.request(this.endpoints.auth.register, {
+      method: 'POST',
+      body: JSON.stringify(userData)
     });
   }
 
@@ -102,6 +113,7 @@ class ApiService {
     });
   }
 
+  // User management methods
   async getUsers(token) {
     return this.request(this.endpoints.users, {
       headers: this.getAuthHeaders(token)
@@ -116,6 +128,21 @@ class ApiService {
     });
   }
 
+  async updateUser(token, userId, userData) {
+    return this.request(`${this.endpoints.users}/${userId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(userData)
+    });
+  }
+
+  async deleteUser(token, userId) {
+    return this.request(`${this.endpoints.users}/${userId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
   async updateUserClass(token, userId, classData) {
     return this.request(`${this.endpoints.users}/${userId}/update-class`, {
       method: 'PUT',
@@ -124,6 +151,7 @@ class ApiService {
     });
   }
 
+  // Attendance methods
   async getAttendance(token) {
     return this.request(this.endpoints.attendance, {
       headers: this.getAuthHeaders(token)
@@ -199,7 +227,7 @@ class ApiService {
     });
   }
 
-  // NEW: Method needed by StudentForm.jsx - Assign subjects by index_number
+  // Method needed by StudentForm.jsx - Assign subjects by index_number
   async assignStudentSubjectsByIndexNumber(token, indexNumber, subjectIds, academicYear) {
     return this.request(`${this.endpoints.students}/subjects/assign-by-index`, {
       method: 'POST',
@@ -236,11 +264,11 @@ class ApiService {
   }
 
   async deleteSubject(token, subjectId) {
-  return this.request(`${this.endpoints.subjects}/${subjectId}`, {
-    method: 'DELETE',
-    headers: this.getAuthHeaders(token)
-  });
-}
+    return this.request(`${this.endpoints.subjects}/${subjectId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(token)
+    });
+  }
 
   async getStudentSubjects(token, studentId, academicYear) {
     const url = academicYear
@@ -312,6 +340,13 @@ class ApiService {
     });
   }
 
+  async deleteMark(token, markId) {
+    return this.request(`${this.endpoints.marks}/${markId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
   async getStudentTermMarks(token, studentId, termId) {
     return this.request(`${this.endpoints.marks}/student/${studentId}/term/${termId}`, {
       headers: this.getAuthHeaders(token)
@@ -323,6 +358,65 @@ class ApiService {
       method: 'POST',
       headers: this.getAuthHeaders(token),
       body: JSON.stringify(bulkData)
+    });
+  }
+
+  // Class management methods
+  async getClasses(token) {
+    return this.request(this.endpoints.classes, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async createClass(token, classData) {
+    return this.request(this.endpoints.classes, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(classData)
+    });
+  }
+
+  async updateClass(token, classId, classData) {
+    return this.request(`${this.endpoints.classes}/${classId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(classData)
+    });
+  }
+
+  async deleteClass(token, classId) {
+    return this.request(`${this.endpoints.classes}/${classId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  // Report methods
+  async getReports(token, filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
+
+    const url = `${this.endpoints.reports}?${params.toString()}`;
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async generateReport(token, reportData) {
+    return this.request(`${this.endpoints.reports}/generate`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(reportData)
+    });
+  }
+
+  async exportReport(token, reportId, format = 'pdf') {
+    return this.request(`${this.endpoints.reports}/${reportId}/export?format=${format}`, {
+      headers: this.getAuthHeaders(token)
     });
   }
 }
