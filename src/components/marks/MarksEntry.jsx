@@ -1,5 +1,5 @@
-// src/components/marks/MarksEntry.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+// src/components/marks/MarksEntry.jsx - FIXED VERSION
+import React, { useState, useEffect } from 'react';
 import { marksApi, studentApi, subjectApi, termApi } from '../../services';
 import { useDebounce } from '../../hooks/useDebounce';
 
@@ -30,6 +30,10 @@ const MarksEntry = () => {
   useEffect(() => {
     if (selectedClass && selectedSubject && selectedTerm) {
       loadStudentsAndMarks();
+    } else {
+      setStudents([]);
+      setMarksData({});
+      setOriginalMarks({});
     }
   }, [selectedClass, selectedSubject, selectedTerm]);
 
@@ -42,10 +46,22 @@ const MarksEntry = () => {
     setCompletionStats({ entered, total, percentage });
   }, [marksData, students]);
 
+  useEffect(() => {
+    // Filter subjects when class changes
+    if (selectedClass) {
+      filterSubjectsByClass();
+    } else {
+      setFilteredSubjects([]);
+      setSelectedSubject('');
+    }
+  }, [selectedClass, subjects]);
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
       setError('');
+      
+      console.log('Loading initial data...');
       
       const [subjectsRes, termsRes, currentTermRes] = await Promise.all([
         subjectApi.getSubjects(),
@@ -53,14 +69,70 @@ const MarksEntry = () => {
         termApi.getCurrentTerm()
       ]);
       
+      console.log('Subjects response:', subjectsRes);
+      console.log('Terms response:', termsRes);
+      console.log('Current term response:', currentTermRes);
+      
       setSubjects(subjectsRes.data?.subjects || []);
       setTerms(termsRes.data?.terms || []);
-      setCurrentTerm(currentTermRes.data?.term || null);
-      setSelectedTerm(currentTermRes.data?.term?.id?.toString() || '');
+      
+      if (currentTermRes.success && currentTermRes.data?.term) {
+        setCurrentTerm(currentTermRes.data.term);
+        setSelectedTerm(currentTermRes.data.term.id.toString());
+        console.log('Auto-selected current term:', currentTermRes.data.term);
+      }
+      
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load initial data');
+      console.error('Error loading initial data:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to load initial data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const filterSubjectsByClass = async () => {
+    try {
+      if (!selectedClass) {
+        setFilteredSubjects([]);
+        return;
+      }
+
+      console.log('Filtering subjects for class:', selectedClass);
+      
+      // Get current year for filtering
+      const currentYear = new Date().getFullYear();
+      
+      // Get subjects that students in this class are taking
+      const subjectsRes = await subjectApi.getClassSubjects(selectedClass, currentYear);
+      
+      console.log('Class subjects response:', subjectsRes);
+      
+      if (subjectsRes.success && subjectsRes.data?.subjects) {
+        const classSubjects = subjectsRes.data.subjects;
+        setFilteredSubjects(classSubjects);
+        
+        console.log(`Found ${classSubjects.length} subjects for class ${selectedClass}`);
+        
+        // Auto-select first subject if available and none is selected
+        if (!selectedSubject && classSubjects.length > 0) {
+          setSelectedSubject(classSubjects[0].id.toString());
+          console.log('Auto-selected first subject:', classSubjects[0]);
+        }
+        
+        // Clear subject selection if currently selected subject is not available for this class
+        if (selectedSubject && !classSubjects.find(s => s.id.toString() === selectedSubject)) {
+          setSelectedSubject('');
+          console.log('Cleared subject selection - not available for this class');
+        }
+      } else {
+        console.log('No subjects found for class or API error:', subjectsRes);
+        setFilteredSubjects([]);
+        setSelectedSubject('');
+      }
+    } catch (err) {
+      console.error('Error filtering subjects by class:', err);
+      // Fallback: show all subjects if filtering fails
+      setFilteredSubjects(subjects);
     }
   };
 
@@ -69,19 +141,24 @@ const MarksEntry = () => {
       setLoading(true);
       setError('');
       
+      console.log('Loading students and marks for:', { 
+        class: selectedClass, 
+        subject: selectedSubject, 
+        term: selectedTerm 
+      });
+      
+      // Load students for the selected class
       const studentsRes = await studentApi.getStudents(selectedClass);
+      console.log('Students response:', studentsRes);
+      
+      if (!studentsRes.success) {
+        throw new Error(studentsRes.error || 'Failed to load students');
+      }
+      
       const studentsData = studentsRes.data?.students || [];
+      console.log(`Loaded ${studentsData.length} students for class ${selectedClass}`);
       
-      // Filter students based on search term
-      const filteredStudents = studentsData.filter(student => 
-        student.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        student.index_number.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      );
-      
-      setStudents(filteredStudents);
-
-      // Filter subjects based on what students in this class are actually taking
-      await filterSubjectsByClass(studentsData);
+      setStudents(studentsData);
 
       // Load existing marks for this combination
       const marksRes = await marksApi.getMarks({
@@ -90,13 +167,16 @@ const MarksEntry = () => {
         term_id: selectedTerm
       });
 
+      console.log('Marks response:', marksRes);
+      
       const existingMarks = marksRes.data?.marks || [];
+      console.log(`Found ${existingMarks.length} existing marks`);
 
       // Initialize marks data
       const initialMarks = {};
       const originalMarksData = {};
       
-      filteredStudents.forEach(student => {
+      studentsData.forEach(student => {
         const existingMark = existingMarks.find(m => m.student_id === student.id);
         initialMarks[student.id] = existingMark ? existingMark.marks.toString() : '';
         originalMarksData[student.id] = existingMark ? existingMark.marks.toString() : '';
@@ -104,41 +184,17 @@ const MarksEntry = () => {
 
       setMarksData(initialMarks);
       setOriginalMarks(originalMarksData);
+      
+      console.log('Initialized marks data for', Object.keys(initialMarks).length, 'students');
+      
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load students and marks');
+      console.error('Error loading students and marks:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to load students and marks');
+      setStudents([]);
+      setMarksData({});
+      setOriginalMarks({});
     } finally {
       setLoading(false);
-    }
-  };
-
-  const filterSubjectsByClass = async (studentsData) => {
-    try {
-      if (studentsData.length === 0) {
-        setFilteredSubjects([]);
-        return;
-      }
-
-      // Get current year for filtering
-      const currentYear = new Date().getFullYear();
-      
-      // Get subjects assigned to students in this class using the new API endpoint
-      const subjectsRes = await subjectApi.getClassSubjects(selectedClass, currentYear);
-      
-      if (subjectsRes.success && subjectsRes.data?.subjects) {
-        setFilteredSubjects(subjectsRes.data.subjects);
-        
-        // If no subject is selected but we have filtered subjects, auto-select the first one
-        if (!selectedSubject && subjectsRes.data.subjects.length > 0) {
-          setSelectedSubject(subjectsRes.data.subjects[0].id.toString());
-        }
-      } else {
-        // Fallback: show all subjects if filtering fails
-        setFilteredSubjects(subjects);
-      }
-    } catch (err) {
-      console.error('Error filtering subjects by class:', err);
-      // Fallback: show all subjects if filtering fails
-      setFilteredSubjects(subjects);
     }
   };
 
@@ -161,7 +217,6 @@ const MarksEntry = () => {
         .map(([studentId, marks]) => ({
           student_id: parseInt(studentId),
           subject_id: parseInt(selectedSubject),
-          term_id: parseInt(selectedTerm),
           marks: parseFloat(marks)
         }));
 
@@ -170,10 +225,23 @@ const MarksEntry = () => {
         return;
       }
 
-      await marksApi.bulkEnterMarks({
+      console.log('Saving marks:', {
+        marksCount: marksToSave.length,
+        termId: selectedTerm,
+        sampleMark: marksToSave[0]
+      });
+
+      // Use the correct API call that matches your backend
+      const response = await marksApi.bulkEnterMarks({
         marksData: marksToSave,
         term_id: parseInt(selectedTerm)
       });
+
+      console.log('Save marks response:', response);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to save marks');
+      }
 
       // Update original marks after successful save
       const newOriginalMarks = { ...originalMarks };
@@ -183,8 +251,11 @@ const MarksEntry = () => {
       setOriginalMarks(newOriginalMarks);
 
       setSuccess(`Successfully saved marks for ${marksToSave.length} students`);
+      console.log('Marks saved successfully');
+      
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save marks');
+      console.error('Error saving marks:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to save marks');
     } finally {
       setLoading(false);
     }
@@ -265,15 +336,17 @@ const MarksEntry = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Class
+              Class <span className="text-red-500">*</span>
             </label>
             <select 
               value={selectedClass} 
               onChange={(e) => {
+                console.log('Class changed to:', e.target.value);
                 setSelectedClass(e.target.value);
                 setSelectedSubject('');
                 setStudents([]);
-                setFilteredSubjects([]);
+                setMarksData({});
+                setOriginalMarks({});
               }}
               disabled={loading}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -287,11 +360,14 @@ const MarksEntry = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Subject
+              Subject <span className="text-red-500">*</span>
             </label>
             <select 
               value={selectedSubject} 
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              onChange={(e) => {
+                console.log('Subject changed to:', e.target.value);
+                setSelectedSubject(e.target.value);
+              }}
               disabled={loading || !selectedClass || filteredSubjects.length === 0}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
@@ -302,15 +378,23 @@ const MarksEntry = () => {
                 </option>
               ))}
             </select>
+            {selectedClass && filteredSubjects.length === 0 && (
+              <p className="text-sm text-yellow-600 mt-1">
+                No subjects found for students in {selectedClass}
+              </p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Term
+              Term <span className="text-red-500">*</span>
             </label>
             <select 
               value={selectedTerm} 
-              onChange={(e) => setSelectedTerm(e.target.value)}
+              onChange={(e) => {
+                console.log('Term changed to:', e.target.value);
+                setSelectedTerm(e.target.value);
+              }}
               disabled={loading}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
@@ -318,36 +402,45 @@ const MarksEntry = () => {
               {terms.map(term => (
                 <option key={term.id} value={term.id}>
                   {term.term_name} ({term.exam_year})
+                  {term.status === 'active' && ' - Current'}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {selectedClass && (
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {filteredSubjects.length > 0 ? (
-                <span>{filteredSubjects.length} subjects being taken by students in {selectedClass}</span>
-              ) : (
-                <span className="text-yellow-600">No subjects found for students in {selectedClass}</span>
-              )}
-            </div>
-            <div className="text-sm text-blue-600">
-              {currentTerm && (
-                <span>Current Term: {currentTerm.term_name} ({currentTerm.exam_year})</span>
-              )}
-            </div>
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-gray-600">
+            {selectedClass && (
+              <>
+                {filteredSubjects.length > 0 ? (
+                  <span>
+                    <span className="font-medium">{filteredSubjects.length}</span> subjects available for class <span className="font-medium">{selectedClass}</span>
+                  </span>
+                ) : (
+                  <span className="text-yellow-600">
+                    No subjects configured for students in class <span className="font-medium">{selectedClass}</span>
+                  </span>
+                )}
+              </>
+            )}
           </div>
-        )}
+          <div className="text-blue-600">
+            {currentTerm && (
+              <span>
+                Current Term: <span className="font-medium">{currentTerm.term_name} ({currentTerm.exam_year})</span>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
-      {students.length > 0 && (
+      {selectedClass && selectedSubject && selectedTerm && students.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg shadow">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-6 border-b border-gray-200 gap-4">
-            <div>
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center p-6 border-b border-gray-200 gap-4">
+            <div className="flex-1">
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Enter Marks for {selectedClass} - {filteredSubjects.find(s => s.id === parseInt(selectedSubject))?.subject_name}
+                {filteredSubjects.find(s => s.id === parseInt(selectedSubject))?.subject_name} - Class {selectedClass}
               </h3>
               
               <div className="flex items-center gap-4">
@@ -367,30 +460,34 @@ const MarksEntry = () => {
                 <div className="flex items-center gap-2">
                   <div className={`h-2 w-24 rounded-full bg-gray-200 overflow-hidden`}>
                     <div 
-                      className={`h-full ${
+                      className={`h-full transition-all duration-300 ${
                         completionStats.percentage >= 80 ? 'bg-green-500' : 
                         completionStats.percentage >= 50 ? 'bg-yellow-500' : 'bg-blue-500'
                       }`} 
                       style={{ width: `${completionStats.percentage}%` }}
                     />
                   </div>
-                  <span className="text-sm text-gray-600">{completionStats.percentage}% complete</span>
+                  <span className="text-sm text-gray-600">
+                    {completionStats.entered}/{completionStats.total} ({completionStats.percentage}%)
+                  </span>
                 </div>
               </div>
             </div>
             
-            <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
               <div className="flex gap-2">
                 <button 
                   onClick={() => handleSelectAllMarks(75)}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium"
-                  title="Set all to A grade (75)"
+                  disabled={loading}
+                  className="bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                  title="Set all marks to A grade (75)"
                 >
                   Set All A
                 </button>
                 <button 
                   onClick={handleClearAllMarks}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium"
+                  disabled={loading}
+                  className="bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
                 >
                   Clear All
                 </button>
@@ -398,7 +495,7 @@ const MarksEntry = () => {
               <button 
                 onClick={handleSaveMarks} 
                 disabled={loading || !hasUnsavedChanges()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-2 rounded-md font-medium transition-colors duration-200 flex items-center justify-center"
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white px-6 py-2 rounded-md font-medium transition-colors duration-200 flex items-center justify-center"
               >
                 {loading && (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -451,7 +548,7 @@ const MarksEntry = () => {
                           value={marksData[student.id] || ''}
                           onChange={(e) => handleMarksChange(student.id, e.target.value)}
                           disabled={loading}
-                          className={`w-24 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          className={`w-24 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors ${
                             hasChanged ? 'border-yellow-400 bg-yellow-50' : 
                             isEmpty ? 'border-gray-300' : 'border-green-300 bg-green-50'
                           }`}
@@ -459,7 +556,7 @@ const MarksEntry = () => {
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
                           getGrade(marksData[student.id]) === 'A' ? 'bg-green-100 text-green-800' :
                           getGrade(marksData[student.id]) === 'B' ? 'bg-blue-100 text-blue-800' :
                           getGrade(marksData[student.id]) === 'C' ? 'bg-yellow-100 text-yellow-800' :
@@ -517,7 +614,19 @@ const MarksEntry = () => {
           </svg>
           <h3 className="mt-2 text-sm font-medium text-gray-900">No students found</h3>
           <p className="mt-1 text-sm text-gray-500">
-            No students found in {selectedClass} or students haven't been assigned to this subject.
+            No students found in class {selectedClass} for the selected subject.
+          </p>
+        </div>
+      )}
+
+      {!selectedClass && (
+        <div className="text-center py-12">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Get started</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Select a class, subject, and term to begin entering marks.
           </p>
         </div>
       )}

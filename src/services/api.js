@@ -1,4 +1,4 @@
-// src/services/api.js - COMPLETE UPDATED VERSION
+// src/services/api.js - FIXED BULK MARKS ENDPOINT
 class ApiService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
@@ -353,8 +353,9 @@ class ApiService {
     });
   }
 
+  // FIXED: Use the correct bulk endpoint that matches your backend
   async bulkEnterMarks(token, bulkData) {
-    return this.request(`${this.endpoints.marks}/bulk-entry`, {
+    return this.request(`${this.endpoints.marks}/bulk`, {
       method: 'POST',
       headers: this.getAuthHeaders(token),
       body: JSON.stringify(bulkData)
@@ -498,18 +499,6 @@ class ApiService {
       body: JSON.stringify(applicationData)
     });
   }
-
-  // Add this method to the ApiService class in api.js
-  async getStudentSubjects(token, studentId, academicYear) {
-    const url = academicYear
-      ? `${this.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
-      : `${this.endpoints.subjects}/students/${studentId}/subjects`;
-    
-    return this.request(url, {
-      headers: this.getAuthHeaders(token)
-    });
-}
-
 }
 
 const apiService = new ApiService();

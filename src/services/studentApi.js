@@ -1,4 +1,4 @@
-// src/services/studentApi.js - FIXED VERSION
+// src/services/studentApi.js - COMPLETE VERSION
 import apiService from './api';
 
 class StudentApiService {
@@ -279,6 +279,101 @@ class StudentApiService {
         success: false,
         error: error.message || 'Failed to update student with subjects'
       };
+    }
+  }
+  
+  // NEW: Additional functions from the complete version
+  async getStudentsWithFilter(classFilter = '', page = 1, limit = 1000) {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      console.log('StudentApi: Getting students with filters:', { classFilter, page, limit });
+
+      const response = await apiService.getStudents(token, classFilter, page, limit);
+
+      if (!response.success) {
+        console.error('Failed to get students:', response.error);
+        throw new Error(response.error || 'Failed to get students');
+      }
+
+      console.log(`StudentApi: Retrieved ${response.data?.students?.length || 0} students`);
+      return response;
+
+    } catch (error) {
+      console.error('StudentApi: Error in getStudents:', error);
+      throw error;
+    }
+  }
+
+  // Assign subjects to a student using student ID (legacy method)
+  async assignStudentSubjectsLegacy(studentId, subjectIds, academicYear) {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      console.log('StudentApi: Assigning subjects to student (legacy):', { 
+        studentId, 
+        subjectIds, 
+        academicYear,
+        subjectCount: subjectIds?.length 
+      });
+
+      const response = await apiService.assignStudentSubjects(token, studentId, {
+        subject_ids: subjectIds,
+        academic_year: academicYear
+      });
+
+      if (!response.success) {
+        console.error('Failed to assign student subjects:', response.error);
+        throw new Error(response.error || 'Failed to assign student subjects');
+      }
+
+      console.log('StudentApi: Subject assignment successful');
+      return response;
+
+    } catch (error) {
+      console.error('StudentApi: Error in assignStudentSubjects:', error);
+      throw error;
+    }
+  }
+
+  // NEW: Assign subjects to a student using index number (preferred method)
+  async assignStudentSubjectsByIndex(indexNumber, subjectIds, academicYear) {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      console.log('StudentApi: Assigning subjects by index number:', { 
+        indexNumber, 
+        subjectIds, 
+        academicYear,
+        subjectCount: subjectIds?.length 
+      });
+
+      const response = await this.assignStudentSubjectsByIndexNumber(
+        indexNumber, 
+        subjectIds, 
+        academicYear
+      );
+
+      if (!response.success) {
+        console.error('Failed to assign student subjects by index:', response.error);
+        throw new Error(response.error || 'Failed to assign student subjects');
+      }
+
+      console.log('StudentApi: Subject assignment by index successful');
+      return response;
+
+    } catch (error) {
+      console.error('StudentApi: Error in assignStudentSubjectsByIndex:', error);
+      throw error;
     }
   }
 }

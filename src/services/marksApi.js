@@ -1,4 +1,4 @@
-// src/services/marksApi.js - UPDATED
+// src/services/marksApi.js - FIXED VERSION
 import apiService from './api';
 
 export const marksApi = {
@@ -22,9 +22,32 @@ export const marksApi = {
     return apiService.getStudentTermMarks(token, studentId, termId);
   },
 
-  bulkEnterMarks: (bulkData) => {
-    const token = localStorage.getItem('token');
-    return apiService.bulkEnterMarks(token, bulkData);
+  // FIXED: Use the correct bulk endpoint that exists in backend
+  bulkEnterMarks: async (bulkData) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      // Use the correct endpoint that exists in your backend: /api/marks/bulk
+      const response = await apiService.request(`${apiService.endpoints.marks}/bulk`, {
+        method: 'POST',
+        headers: apiService.getAuthHeaders(token),
+        body: JSON.stringify(bulkData)
+      });
+
+      if (!response.success) {
+        console.error('Bulk marks entry failed:', response.error);
+        throw new Error(response.error || 'Failed to save marks');
+      }
+
+      return response;
+
+    } catch (error) {
+      console.error('MarksApi: Error in bulkEnterMarks:', error);
+      throw error;
+    }
   },
 
   getGrades: () => {
@@ -58,7 +81,7 @@ export const marksApi = {
   },
 
   applyMarkTemplate: (templateId, applicationData) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getToken('token');
     return apiService.applyMarkTemplate(token, templateId, applicationData);
   }
 };
