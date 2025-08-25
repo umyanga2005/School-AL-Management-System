@@ -61,7 +61,6 @@ const LoginForm = ({ onLoginSuccess, loading, setLoading }) => {
               alt="School Logo"
             />
           </div>
-          <h1>SCC</h1>
           <h1>{APP_CONFIG.schoolName}</h1>
           <p>Management System</p>
           <div className="connection-status">

@@ -140,6 +140,32 @@ const AdminDashboard = ({ currentUser, teachers, setTeachers, attendanceRecords 
 
   return (
     <div className="dashboard-container">
+      {/* System Overview Card */}
+      <div className="card">
+        <div className="card-header">
+          <BarChart3 size={20} />
+          <h2>System Overview</h2>
+        </div>
+        <div className="overview-stats">
+          <div className="overview-item">
+            <span className="overview-label">Total Teachers</span>
+            <span className="overview-value">{teachers.length}</span>
+          </div>
+          <div className="overview-item">
+            <span className="overview-label">Total Records</span>
+            <span className="overview-value">{totalRecords}</span>
+          </div>
+          <div className="overview-item">
+            <span className="overview-label">Students Recorded</span>
+            <span className="overview-value">{totalStudentsRecorded}</span>
+          </div>
+          <div className="overview-item">
+            <span className="overview-label">Classes Available</span>
+            <span className="overview-value">{CLASSES.length}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Edit Teacher Modal */}
       {showEditModal && (
         <div style={{
@@ -374,32 +400,6 @@ const AdminDashboard = ({ currentUser, teachers, setTeachers, attendanceRecords 
             <button onClick={handleAddCoordinator} className="add-btn" disabled={loading}>
               {loading ? 'Adding...' : 'Add Coordinator'}
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* System Overview Card */}
-      <div className="card">
-        <div className="card-header">
-          <BarChart3 size={20} />
-          <h2>System Overview</h2>
-        </div>
-        <div className="overview-stats">
-          <div className="overview-item">
-            <span className="overview-label">Total Teachers</span>
-            <span className="overview-value">{teachers.length}</span>
-          </div>
-          <div className="overview-item">
-            <span className="overview-label">Total Records</span>
-            <span className="overview-value">{totalRecords}</span>
-          </div>
-          <div className="overview-item">
-            <span className="overview-label">Students Recorded</span>
-            <span className="overview-value">{totalStudentsRecorded}</span>
-          </div>
-          <div className="overview-item">
-            <span className="overview-label">Classes Available</span>
-            <span className="overview-value">{CLASSES.length}</span>
           </div>
         </div>
       </div>
