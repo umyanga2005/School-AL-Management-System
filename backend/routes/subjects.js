@@ -1,4 +1,4 @@
-// backend/routes/subjects.js - FIXED VERSION
+// backend/routes/subjects.js - ENHANCED VERSION
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
@@ -315,5 +315,221 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/subjects/class/:className - Get subjects by class using student_subjects table
+router.get('/class/:className', requireAuth, async (req, res) => {
+  try {
+    const { className } = req.params;
+    const { academic_year } = req.query;
+    
+    console.log('Getting subjects for class:', className, 'academic year:', academic_year);
+    
+    // Check if user has permission
+    if (req.user.role !== 'admin') {
+      // Teachers/coordinators can only access their assigned class
+      if (req.user.assignedClass && className !== req.user.assignedClass) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Not authorized to access subjects for this class' 
+        });
+      }
+    }
+    
+    // Get current year if not provided
+    const currentYear = academic_year || new Date().getFullYear();
+    
+    // Get subjects that students in this class are taking
+    const sql = `
+      SELECT DISTINCT s.id, s.subject_code, s.subject_name, s.stream, s.description
+      FROM student_subjects ss
+      JOIN subjects s ON ss.subject_id = s.id
+      JOIN students st ON ss.index_number = st.index_number
+      WHERE st.current_class = $1 
+        AND ss.academic_year = $2 
+        AND s.status = 'active'
+        AND st.status = 'active'
+      ORDER BY s.stream, s.subject_name
+    `;
+    
+    const result = await db.execute(sql, [className, currentYear]);
+    
+    console.log(`Found ${result.rows.length} subjects for class ${className} in year ${currentYear}`);
+    
+    res.json({ 
+      success: true, 
+      subjects: result.rows,
+      class: className,
+      academicYear: currentYear
+    });
+  } catch (error) {
+    console.error('Error getting subjects by class:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: 'Failed to retrieve subjects for the specified class'
+    });
+  }
+});
+
+// GET /api/subjects/class/:className/students - Get students and their subjects for a class
+router.get('/class/:className/students', requireAuth, async (req, res) => {
+  try {
+    const { className } = req.params;
+    const { academic_year } = req.query;
+    
+    console.log('Getting students and subjects for class:', className);
+    
+    // Check if user has permission
+    if (req.user.role !== 'admin') {
+      // Teachers/coordinators can only access their assigned class
+      if (req.user.assignedClass && className !== req.user.assignedClass) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Not authorized to access this class data' 
+        });
+      }
+    }
+    
+    // Get current year if not provided
+    const currentYear = academic_year || new Date().getFullYear();
+    
+    // Get all students in the class
+    const studentsSql = `
+      SELECT id, index_number, name, current_class
+      FROM students 
+      WHERE current_class = $1 AND status = 'active'
+      ORDER BY index_number
+    `;
+    
+    const studentsResult = await db.execute(studentsSql, [className]);
+    
+    if (studentsResult.rows.length === 0) {
+      return res.json({ 
+        success: true, 
+        students: [],
+        class: className,
+        academicYear: currentYear,
+        message: 'No students found in this class'
+      });
+    }
+    
+    // Get subjects for each student
+    const studentsWithSubjects = await Promise.all(
+      studentsResult.rows.map(async (student) => {
+        try {
+          const subjectsSql = `
+            SELECT s.id, s.subject_code, s.subject_name, s.stream
+            FROM student_subjects ss
+            JOIN subjects s ON ss.subject_id = s.id
+            WHERE ss.index_number = $1 AND ss.academic_year = $2 AND s.status = 'active'
+            ORDER BY s.stream, s.subject_name
+          `;
+          
+          const subjectsResult = await db.execute(subjectsSql, [student.index_number, currentYear]);
+          
+          return {
+            ...student,
+            subjects: subjectsResult.rows
+          };
+        } catch (error) {
+          console.error(`Error getting subjects for student ${student.index_number}:`, error);
+          return {
+            ...student,
+            subjects: [],
+            error: 'Failed to load subjects'
+          };
+        }
+      })
+    );
+    
+    console.log(`Retrieved ${studentsWithSubjects.length} students with subjects for class ${className}`);
+    
+    res.json({ 
+      success: true, 
+      students: studentsWithSubjects,
+      class: className,
+      academicYear: currentYear
+    });
+  } catch (error) {
+    console.error('Error getting students and subjects by class:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: 'Failed to retrieve students and subjects for the specified class'
+    });
+  }
+});
+
+// GET /api/subjects/class/:className/subject-stats - Get subject statistics for a class
+router.get('/class/:className/subject-stats', requireAuth, async (req, res) => {
+  try {
+    const { className } = req.params;
+    const { academic_year } = req.query;
+    
+    console.log('Getting subject statistics for class:', className);
+    
+    // Check if user has permission
+    if (req.user.role !== 'admin') {
+      // Teachers/coordinators can only access their assigned class
+      if (req.user.assignedClass && className !== req.user.assignedClass) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Not authorized to access this class data' 
+        });
+      }
+    }
+    
+    // Get current year if not provided
+    const currentYear = academic_year || new Date().getFullYear();
+    
+    // Get subject enrollment statistics
+    const statsSql = `
+      SELECT 
+        s.id, 
+        s.subject_code, 
+        s.subject_name, 
+        s.stream,
+        COUNT(ss.index_number) as student_count,
+        COUNT(DISTINCT st.id) as total_students,
+        ROUND((COUNT(ss.index_number) * 100.0 / COUNT(DISTINCT st.id)), 2) as enrollment_percentage
+      FROM subjects s
+      CROSS JOIN (SELECT id FROM students WHERE current_class = $1 AND status = 'active') st
+      LEFT JOIN student_subjects ss ON s.id = ss.subject_id 
+        AND ss.academic_year = $2 
+        AND ss.index_number IN (SELECT index_number FROM students WHERE current_class = $1 AND status = 'active')
+      WHERE s.status = 'active'
+      GROUP BY s.id, s.subject_code, s.subject_name, s.stream
+      ORDER BY s.stream, s.subject_name
+    `;
+    
+    const statsResult = await db.execute(statsSql, [className, currentYear]);
+    
+    // Get total students in class
+    const totalStudentsSql = `
+      SELECT COUNT(*) as total 
+      FROM students 
+      WHERE current_class = $1 AND status = 'active'
+    `;
+    
+    const totalStudentsResult = await db.execute(totalStudentsSql, [className]);
+    const totalStudents = parseInt(totalStudentsResult.rows[0].total);
+    
+    console.log(`Subject statistics retrieved for class ${className}: ${statsResult.rows.length} subjects`);
+    
+    res.json({ 
+      success: true, 
+      subjectStats: statsResult.rows,
+      totalStudents: totalStudents,
+      class: className,
+      academicYear: currentYear
+    });
+  } catch (error) {
+    console.error('Error getting subject statistics by class:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: 'Failed to retrieve subject statistics for the specified class'
+    });
+  }
+});
 
 module.exports = router;

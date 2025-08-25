@@ -1,4 +1,4 @@
-// src/services/marksApi.js
+// src/services/marksApi.js - UPDATED
 import apiService from './api';
 
 export const marksApi = {
@@ -25,5 +25,40 @@ export const marksApi = {
   bulkEnterMarks: (bulkData) => {
     const token = localStorage.getItem('token');
     return apiService.bulkEnterMarks(token, bulkData);
+  },
+
+  getGrades: () => {
+    const token = localStorage.getItem('token');
+    return apiService.getGrades(token);
+  },
+
+  getMarkHistory: (markId) => {
+    const token = localStorage.getItem('token');
+    return apiService.getMarkHistory(token, markId);
+  },
+
+  getMarkNotes: (markId) => {
+    const token = localStorage.getItem('token');
+    return apiService.getMarkNotes(token, markId);
+  },
+
+  addMarkNote: (markId, noteData) => {
+    const token = localStorage.getItem('token');
+    return apiService.addMarkNote(token, markId, noteData);
+  },
+
+  getMarkTemplates: (filters = {}) => {
+    const token = localStorage.getItem('token');
+    return apiService.getMarkTemplates(token, filters);
+  },
+
+  createMarkTemplate: (templateData) => {
+    const token = localStorage.getItem('token');
+    return apiService.createMarkTemplate(token, templateData);
+  },
+
+  applyMarkTemplate: (templateId, applicationData) => {
+    const token = localStorage.getItem('token');
+    return apiService.applyMarkTemplate(token, templateId, applicationData);
   }
 };

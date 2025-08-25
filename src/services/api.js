@@ -1,4 +1,4 @@
-// src/services/api.js - UPDATED WITH MISSING METHODS
+// src/services/api.js - COMPLETE UPDATED VERSION
 class ApiService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
@@ -391,6 +391,25 @@ class ApiService {
     });
   }
 
+  // Class-subject methods
+  async getClassSubjects(token, className, academicYear) {
+    const url = academicYear
+      ? `${this.endpoints.subjects}/class/${className}?academic_year=${academicYear}`
+      : `${this.endpoints.subjects}/class/${className}`;
+    
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async assignClassSubjects(token, className, subjectData) {
+    return this.request(`${this.endpoints.classes}/${className}/subjects`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(subjectData)
+    });
+  }
+
   // Report methods
   async getReports(token, filters = {}) {
     const params = new URLSearchParams();
@@ -419,6 +438,78 @@ class ApiService {
       headers: this.getAuthHeaders(token)
     });
   }
+
+  // Grade methods
+  async getGrades(token) {
+    return this.request(`${this.endpoints.marks}/grades`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  // Mark history methods
+  async getMarkHistory(token, markId) {
+    return this.request(`${this.endpoints.marks}/${markId}/history`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  // Mark note methods
+  async getMarkNotes(token, markId) {
+    return this.request(`${this.endpoints.marks}/${markId}/notes`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async addMarkNote(token, markId, noteData) {
+    return this.request(`${this.endpoints.marks}/${markId}/notes`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(noteData)
+    });
+  }
+
+  // Template methods
+  async getMarkTemplates(token, filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
+
+    const url = `${this.endpoints.marks}/templates?${params.toString()}`;
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async createMarkTemplate(token, templateData) {
+    return this.request(`${this.endpoints.marks}/templates`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(templateData)
+    });
+  }
+
+  async applyMarkTemplate(token, templateId, applicationData) {
+    return this.request(`${this.endpoints.marks}/templates/${templateId}/apply`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(applicationData)
+    });
+  }
+
+  // Add this method to the ApiService class in api.js
+  async getStudentSubjects(token, studentId, academicYear) {
+    const url = academicYear
+      ? `${this.endpoints.subjects}/students/${studentId}/subjects?academic_year=${academicYear}`
+      : `${this.endpoints.subjects}/students/${studentId}/subjects`;
+    
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+}
+
 }
 
 const apiService = new ApiService();
