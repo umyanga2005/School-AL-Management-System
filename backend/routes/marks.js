@@ -169,15 +169,15 @@ router.post('/bulk', requireAuth, async (req, res) => {
         );
         
         if (existingCheck.rows.length > 0) {
-          // Update existing mark
+          // Update existing mark - use teacher_id from req.user.id
           await db.execute(
-            'UPDATE marks SET marks = $1, updated_at = NOW() WHERE id = $2',
-            [marks, existingCheck.rows[0].id]
+            'UPDATE marks SET marks = $1, teacher_id = $2, updated_at = NOW() WHERE id = $3',
+            [marks, req.user.id, existingCheck.rows[0].id]
           );
         } else {
-          // Insert new mark
+          // Insert new mark - use teacher_id instead of entered_by
           await db.execute(
-            'INSERT INTO marks (student_id, subject_id, term_id, marks, entered_by, entered_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+            'INSERT INTO marks (student_id, subject_id, term_id, marks, teacher_id, entered_at) VALUES ($1, $2, $3, $4, $5, NOW())',
             [student_id, subject_id, term_id, marks, req.user.id]
           );
         }
