@@ -357,7 +357,7 @@ const App = () => {
             onLogout={handleLogout}
             onMenuClick={() => setSidebarOpen(true)}
           />
-          <div className="flex h-screen pt-16"> {/* pt-16 to account for fixed header */}
+          <div className="flex"> {/* pt-16 to account for fixed header */}
             {renderSidebar()}
             <div className="flex-1 lg:ml-0 overflow-hidden">
               <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
