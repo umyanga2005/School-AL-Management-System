@@ -1,4 +1,4 @@
-// backend/routes/marks.js - Enhanced with better filtering
+// backend/routes/marks.js - FIXED VERSION
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
@@ -175,9 +175,9 @@ router.post('/bulk', requireAuth, async (req, res) => {
             [marks, req.user.id, existingCheck.rows[0].id]
           );
         } else {
-          // Insert new mark - use teacher_id instead of entered_by
+          // FIXED: Use 'entry_date' instead of 'entered_at'
           await db.execute(
-            'INSERT INTO marks (student_id, subject_id, term_id, marks, teacher_id, entered_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+            'INSERT INTO marks (student_id, subject_id, term_id, marks, teacher_id, entry_date) VALUES ($1, $2, $3, $4, $5, NOW())',
             [student_id, subject_id, term_id, marks, req.user.id]
           );
         }
