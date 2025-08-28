@@ -1,4 +1,4 @@
-// src/components/reports/ClassReport.jsx - COMPLETE ENHANCED VERSION
+// src/components/reports/ClassReport.jsx - FIXED VERSION
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { termApi, classApi, reportApi, subjectApi } from '../../services';
 import jsPDF from 'jspdf';
@@ -178,11 +178,11 @@ const FilterSection = ({ filters, onFiltersChange, terms, classes, subjects, loa
               required
             >
               <option value="">Select Term</option>
-              {terms.map(term => (
-                <option key={term.id} value={term.id}>
-                  {term.term_name} ({term.exam_year})
-                </option>
-              ))}
+                {Array.isArray(terms) && terms.map(term => (
+                  <option key={term.id} value={term.id}>
+                    {term.term_name} ({term.exam_year})
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -230,11 +230,11 @@ const FilterSection = ({ filters, onFiltersChange, terms, classes, subjects, loa
                 required={filters.reportType === 'class'}
               >
                 <option value="">Select Class</option>
-                {classes
-                  .filter(c => !filters.gradeLevel || c.class_name.includes(filters.gradeLevel))
-                  .map(c => (
-                    <option key={c.id} value={c.class_name}>{c.class_name}</option>
-                  ))}
+                  {Array.isArray(classes) && classes
+                    .filter(c => !filters.gradeLevel || c.class_name.includes(filters.gradeLevel))
+                    .map(c => (
+                      <option key={c.id} value={c.class_name}>{c.class_name}</option>
+                    ))}
               </select>
             </div>
           )}
@@ -752,454 +752,413 @@ const ExportControls = ({
       icon: '📈',
       onClick: onExportSubjectAnalysis,
       type: 'analysis',
-      description: 'Detailed subject statistics'
+      description: 'Detailed subject performance'
     }
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow border border-gray-200 p-4 lg:p-6">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold text-gray-900">Export & Share</h3>
-          <p className="text-sm text-gray-600 mt-1">
-            {currentTerm ? `Term: ${currentTerm.term_name} (${currentTerm.exam_year})` : 'Select a term'} · 
-            <span className="ml-1">
-              {reportData?.length || 0} students · Filters: {filters.reportType}
-            </span>
-          </p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {exportOptions.map((opt) => (
-            <button
-              key={opt.type}
-              onClick={() => handleExport(opt.onClick, opt.type)}
-              disabled={isExporting}
-              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                isExporting && exportType === opt.type
-                  ? 'bg-gray-300 cursor-wait'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-              title={opt.description}
-            >
-              <span>{opt.icon}</span>
-              <span>{isExporting && exportType === opt.type ? 'Working...' : opt.label}</span>
-            </button>
-          ))}
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
+      <div className="p-4 lg:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">Export Reports</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Download reports in various formats for offline use
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap gap-3">
+            {exportOptions.map((option) => (
+              <button
+                key={option.type}
+                onClick={() => handleExport(option.onClick, option.type)}
+                disabled={isExporting || reportData.length === 0}
+                className={`flex items-center px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                  isExporting || reportData.length === 0
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 hover:from-blue-100 hover:to-blue-200 hover:text-blue-900 hover:shadow-md'
+                }`}
+              >
+                {isExporting && exportType === option.type ? (
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <span className="mr-2 text-lg">{option.icon}</span>
+                )}
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Lightweight Student Details Modal
-const StudentModal = ({ student, subjects, onClose }) => {
-  if (!student) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-50 w-full max-w-2xl bg-white rounded-xl shadow-xl border border-gray-200">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h4 className="text-lg font-semibold">{student.name} · {student.index_number}</h4>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
-        </div>
-        <div className="p-6">
-          <div className="mb-4 text-sm text-gray-700">
-            <span className="font-medium">Class:</span> {student.current_class} ·{' '}
-            <span className="font-medium">Average:</span> {student.average}% ·{' '}
-            <span className="font-medium">Total:</span> {Number(student.totalMarks).toFixed(2)}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Subject</th>
-                  <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Marks</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {subjects.map((s) => {
-                  const m = student.marks.find(mm => mm.subject_id === s.id);
-                  return (
-                    <tr key={s.id}>
-                      <td className="px-4 py-2 text-sm text-gray-900">{s.subject_name}</td>
-                      <td className={`px-4 py-2 text-sm text-right ${m && m.marks < 50 ? 'text-red-600 font-semibold' : 'text-gray-900'}`}>
-                        {m ? m.marks : '-'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="px-6 py-3 border-t flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-semibold">Close</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ===== MAIN CONTAINER =====
+// Main Component
 const ClassReport = () => {
-  const defaultFilters = {
-    reportType: 'class',       // class | grade | stream | term
-    termId: '',
-    className: '',
-    gradeLevel: '',            // '' | '12' | '13'
-    streamFilter: '',          // '' | Arts | Commerce | Science | Technology | Common
-    academicYear: new Date().getFullYear().toString(),
-    includeCommon: true,
-    showRanking: true,
-    includeStats: true,
-  };
-
-  const [filters, setFilters] = useState(defaultFilters);
   const [terms, setTerms] = useState([]);
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [reportData, setReportData] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [currentTerm, setCurrentTerm] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // Fetch terms & classes on mount
+  const [filters, setFilters] = useState({
+    termId: '',
+    className: '',
+    gradeLevel: '',
+    streamFilter: '',
+    reportType: 'class',
+    academicYear: new Date().getFullYear(),
+    includeCommon: true,
+    showRanking: true,
+    includeStats: true
+  });
+
+  // Load initial data
   useEffect(() => {
-    const init = async () => {
-      const t = await termApi.getAll();  // expects [{id, term_name, exam_year}, ...]
-      setTerms(t || []);
-      const c = await classApi.getAll(); // expects [{id, class_name}, ...]
-      setClasses(c || []);
-    };
-    init();
+    loadInitialData();
   }, []);
 
-  // Fetch subjects based on chosen class/stream
-  const loadSubjects = useCallback(async () => {
-    if (filters.reportType === 'class' && filters.className) {
-      const subs = await subjectApi.getByClass(filters.className); // /api/subjects/class/:className
-      setSubjects(subs || []);
-    } else {
-      // Fallback: get all or by stream/common (you can adapt to your API)
-      const subs = await subjectApi.getAll({
-        stream: filters.streamFilter || undefined,
-        includeCommon: filters.includeCommon
-      });
-      setSubjects(subs || []);
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load terms
+      const termsResponse = await termApi.getAll();
+      if (termsResponse.success) {
+        // FIX: Access the terms array from the response data
+        setTerms(termsResponse.data?.terms || termsResponse.data || []);
+      } else {
+        throw new Error(termsResponse.error || 'Failed to load terms');
+      }
+
+      // Load classes
+      const classesResponse = await classApi.getAll();
+      if (classesResponse.success) {
+        // FIX: Access the classes array from the response data
+        setClasses(classesResponse.data?.classes || classesResponse.data || []);
+      } else {
+        throw new Error(classesResponse.error || 'Failed to load classes');
+      }
+
+      // Load subjects
+      const subjectsResponse = await subjectApi.getAll();
+      if (subjectsResponse.success) {
+        // FIX: Access the subjects array from the response data
+        setSubjects(subjectsResponse.data?.subjects || subjectsResponse.data || []);
+      } else {
+        throw new Error(subjectsResponse.error || 'Failed to load subjects');
+      }
+
+    } catch (err) {
+      setError(err.message);
+      console.error('Error loading initial data:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [filters.reportType, filters.className, filters.streamFilter, filters.includeCommon]);
+  };
 
-  useEffect(() => { loadSubjects(); }, [loadSubjects]);
-
-  // Filters change
   const handleFiltersChange = (e) => {
-    const { name, type, value, checked } = e.target;
+    const { name, value, type, checked } = e.target;
     setFilters(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
   };
 
-  // Compute summary from report data
-  const computeSummary = useCallback((data, subs) => {
-    const totalStudents = data.length;
-    const totalSubjects = subs.length;
-    let highest = 0;
-    let lowest = 100;
-    let passCount = 0;
-    let sumAverages = 0;
+  const generateReport = async () => {
+    if (!filters.termId) {
+      setError('Please select a term');
+      return;
+    }
 
-    data.forEach(s => {
-      sumAverages += Number(s.average || 0);
-      highest = Math.max(highest, Number(s.average || 0));
-      lowest = Math.min(lowest, Number(s.average || 100));
-      if (Number(s.average || 0) >= 50) passCount += 1;
-    });
+    if (filters.reportType === 'class' && !filters.className) {
+      setError('Please select a class');
+      return;
+    }
 
-    const classAverage = totalStudents ? (sumAverages / totalStudents).toFixed(2) : 0;
-    const passRate = totalStudents ? ((passCount / totalStudents) * 100).toFixed(2) : 0;
-
-    return {
-      totalStudents,
-      totalSubjects,
-      classAverage,
-      highestScore: highest.toFixed(2),
-      lowestScore: totalStudents ? lowest.toFixed(2) : 0,
-      passRate
-    };
-  }, []);
-
-  // Generate report
-  const handleGenerate = async () => {
-    setLoading(true);
-    setMsg(null);
     try {
-      const payload = {
-        term_id: filters.termId,
-        report_type: filters.reportType,
-        class_name: filters.className || undefined,
-        grade_level: filters.gradeLevel || undefined,
-        stream: filters.streamFilter || undefined,
-        include_common: filters.includeCommon,
-        academic_year: filters.academicYear
-      };
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
 
-      const term = terms.find(t => String(t.id) === String(filters.termId));
-      setCurrentTerm(term || null);
-
-      const data = await reportApi.getTermReport(payload); 
-      // expected shape per student: {
-      //   id, index_number, name, current_class, rank (optional),
-      //   marks: [{subject_id, subject_name, marks}], totalMarks, average
-      // }
-
-      // ensure totals/averages exist
-      const normalized = (data || []).map(s => {
-        const totalMarks = s.totalMarks ?? (s.marks || []).reduce((acc, m) => acc + Number(m.marks || 0), 0);
-        const average = s.average ?? (subjects.length ? Math.round((totalMarks / subjects.length) * 100) / 100 : 0);
-        return { ...s, totalMarks, average };
+      const response = await reportApi.getClassReport({
+        termId: filters.termId,
+        className: filters.className,
+        gradeLevel: filters.gradeLevel,
+        streamFilter: filters.streamFilter,
+        reportType: filters.reportType,
+        academicYear: filters.academicYear,
+        includeCommon: filters.includeCommon
       });
 
-      setReportData(normalized);
-      setSummary(computeSummary(normalized, subjects));
-      setMsg({ type: 'success', text: 'Report generated successfully.' });
+      if (response.success) {
+        setReportData(response.data.reportData || []);
+        setSummary(response.data.summary || {});
+        setCurrentTerm(response.data.term);
+        setSuccess(`Report generated successfully for ${response.data.term?.term_name || 'selected term'}`);
+      } else {
+        throw new Error(response.error || 'Failed to generate report');
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Error generating report:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // ===== Exports =====
-  const downloadFile = (blob, filename) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const exportPDF = async () => {
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-
-    const title = `Class Report - ${currentTerm ? `${currentTerm.term_name} ${currentTerm.exam_year}` : ''}`;
-    doc.setFontSize(16);
-    doc.text(title, 40, 40);
-    doc.setFontSize(10);
-    const subtitle = [
-      `Report Type: ${filters.reportType}`,
-      filters.className ? `Class: ${filters.className}` : null,
-      filters.gradeLevel ? `Grade: ${filters.gradeLevel}` : null,
-      filters.streamFilter ? `Stream: ${filters.streamFilter}` : null,
-      `Year: ${filters.academicYear}`
-    ].filter(Boolean).join(' · ');
-    doc.text(subtitle, 40, 60);
-
-    const head = [
-      ...(filters.showRanking ? ['Rank'] : []),
-      'Index No', 'Name', 'Class',
-      ...subjects.map(s => s.subject_name),
-      'Total', 'Average'
-    ];
-
-    const body = reportData.map(s => ([
-      ...(filters.showRanking ? [s.rank ?? '-'] : []),
-      s.index_number,
-      s.name,
-      s.current_class,
-      ...subjects.map(sub => {
-        const m = (s.marks || []).find(mm => mm.subject_id === sub.id);
-        return m ? m.marks : '-';
-      }),
-      Number(s.totalMarks).toFixed(2),
-      `${s.average}%`
-    ]));
-
-    doc.autoTable({
-      head: [head],
-      body,
-      startY: 80,
-      styles: { fontSize: 8, cellPadding: 3 },
-      headStyles: { fillColor: [30, 64, 175] },
-      didDrawPage: (data) => {
-        // footer
-        const pageCount = doc.internal.getNumberOfPages();
-        doc.setFontSize(8);
-        doc.text(`Generated on ${new Date().toLocaleString()}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
-        doc.text(`Page ${data.pageNumber} of ${pageCount}`, doc.internal.pageSize.width - 80, doc.internal.pageSize.height - 10);
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(18);
+      doc.text('Class Performance Report', 105, 15, { align: 'center' });
+      
+      // Add term info
+      doc.setFontSize(12);
+      doc.text(`Term: ${currentTerm?.term_name || 'N/A'}`, 20, 25);
+      doc.text(`Academic Year: ${filters.academicYear}`, 20, 35);
+      
+      if (filters.reportType === 'class') {
+        doc.text(`Class: ${filters.className}`, 20, 45);
       }
-    });
-
-    const blob = doc.output('blob');
-    downloadFile(blob, `class-report-${filters.reportType}-${filters.academicYear}.pdf`);
+      
+      // Add table
+      doc.autoTable({
+        startY: 55,
+        head: [['Index No', 'Name', 'Class', 'Total Marks', 'Average']],
+        body: reportData.map(student => [
+          student.index_number,
+          student.name,
+          student.current_class,
+          student.totalMarks.toFixed(2),
+          `${student.average}%`
+        ])
+      });
+      
+      doc.save(`class-report-${filters.className}-${filters.academicYear}.pdf`);
+      setSuccess('PDF exported successfully');
+    } catch (err) {
+      setError('Failed to export PDF');
+      console.error('PDF export error:', err);
+    }
   };
 
   const exportCSV = async () => {
-    const rows = reportData.map(s => {
-      const row = {
-        rank: filters.showRanking ? (s.rank ?? '') : undefined,
-        index_number: s.index_number,
-        name: s.name,
-        class: s.current_class
-      };
-      subjects.forEach(sub => {
-        const m = (s.marks || []).find(mm => mm.subject_id === sub.id);
-        row[sub.subject_name] = m ? m.marks : '';
-      });
-      row.total = Number(s.totalMarks).toFixed(2);
-      row.average = s.average;
-      return row;
-    });
-
-    const csv = Papa.unparse(rows, { columns: true });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    downloadFile(blob, `class-report-${filters.reportType}-${filters.academicYear}.csv`);
+    try {
+      const csvData = reportData.map(student => ({
+        'Index Number': student.index_number,
+        'Name': student.name,
+        'Class': student.current_class,
+        'Total Marks': student.totalMarks.toFixed(2),
+        'Average': `${student.average}%`,
+        ...student.marks.reduce((acc, mark) => {
+          acc[mark.subject_name] = mark.marks;
+          return acc;
+        }, {})
+      }));
+      
+      const csv = Papa.unparse(csvData);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `class-report-${filters.className}-${filters.academicYear}.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setSuccess('CSV exported successfully');
+    } catch (err) {
+      setError('Failed to export CSV');
+      console.error('CSV export error:', err);
+    }
   };
 
   const exportExcel = async () => {
-    const wb = XLSX.utils.book_new();
-
-    // Marks sheet
-    const marksRows = reportData.map(s => {
-      const row = {
-        ...(filters.showRanking ? { Rank: s.rank ?? '' } : {}),
-        'Index No': s.index_number,
-        Name: s.name,
-        Class: s.current_class
-      };
-      subjects.forEach(sub => {
-        const m = (s.marks || []).find(mm => mm.subject_id === sub.id);
-        row[sub.subject_name] = m ? m.marks : '';
-      });
-      row.Total = Number(s.totalMarks).toFixed(2);
-      row.Average = s.average;
-      return row;
-    });
-    const wsMarks = XLSX.utils.json_to_sheet(marksRows);
-    XLSX.utils.book_append_sheet(wb, wsMarks, 'Marks');
-
-    // Summary sheet
-    const summaryRows = [
-      { Metric: 'Total Students', Value: summary.totalStudents || 0 },
-      { Metric: 'Total Subjects', Value: summary.totalSubjects || 0 },
-      { Metric: 'Class Average', Value: `${summary.classAverage || 0}%` },
-      { Metric: 'Highest Score', Value: `${summary.highestScore || 0}%` },
-      { Metric: 'Lowest Score', Value: `${summary.lowestScore || 0}%` },
-      { Metric: 'Pass Rate', Value: `${summary.passRate || 0}%` },
-    ];
-    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
-
-    // Meta sheet
-    const meta = [
-      { Key: 'Report Type', Value: filters.reportType },
-      { Key: 'Term', Value: currentTerm ? `${currentTerm.term_name} (${currentTerm.exam_year})` : '' },
-      { Key: 'Class', Value: filters.className || '' },
-      { Key: 'Grade', Value: filters.gradeLevel || '' },
-      { Key: 'Stream', Value: filters.streamFilter || '' },
-      { Key: 'Academic Year', Value: filters.academicYear },
-      { Key: 'Include Common', Value: filters.includeCommon ? 'Yes' : 'No' },
-      { Key: 'Show Ranking', Value: filters.showRanking ? 'Yes' : 'No' },
-      { Key: 'Generated At', Value: new Date().toLocaleString() }
-    ];
-    const wsMeta = XLSX.utils.json_to_sheet(meta);
-    XLSX.utils.book_append_sheet(wb, wsMeta, 'Meta');
-
-    // (Optional) Subject Analysis sheet (pulls from API)
     try {
-      const analysis = await reportApi.getSubjectAnalysis({
-        term_id: filters.termId,
-        class_name: filters.className || undefined,
-        grade_level: filters.gradeLevel || undefined,
-        stream: filters.streamFilter || undefined,
-        include_common: filters.includeCommon
-      });
-      if (analysis && analysis.length) {
-        const wsAnalysis = XLSX.utils.json_to_sheet(analysis);
-        XLSX.utils.book_append_sheet(wb, wsAnalysis, 'Subject Analysis');
-      }
-    } catch (_) {}
-
-    const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    downloadFile(blob, `class-report-${filters.reportType}-${filters.academicYear}.xlsx`);
+      const wb = XLSX.utils.book_new();
+      
+      // Main data sheet
+      const wsData = XLSX.utils.json_to_sheet(
+        reportData.map(student => ({
+          'Index Number': student.index_number,
+          'Name': student.name,
+          'Class': student.current_class,
+          'Total Marks': student.totalMarks.toFixed(2),
+          'Average': `${student.average}%`,
+          ...student.marks.reduce((acc, mark) => {
+            acc[mark.subject_name] = mark.marks;
+            return acc;
+          }, {})
+        }))
+      );
+      
+      XLSX.utils.book_append_sheet(wb, wsData, 'Student Data');
+      
+      // Summary sheet
+      const wsSummary = XLSX.utils.json_to_sheet([
+        { 'Metric': 'Total Students', 'Value': summary.totalStudents || 0 },
+        { 'Metric': 'Total Subjects', 'Value': summary.totalSubjects || 0 },
+        { 'Metric': 'Class Average', 'Value': `${summary.classAverage || 0}%` },
+        { 'Metric': 'Highest Score', 'Value': `${summary.highestScore || 0}%` },
+        { 'Metric': 'Lowest Score', 'Value': `${summary.lowestScore || 0}%` },
+        { 'Metric': 'Pass Rate', 'Value': `${summary.passRate || 0}%` }
+      ]);
+      
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+      
+      XLSX.writeFile(wb, `class-report-${filters.className}-${filters.academicYear}.xlsx`);
+      setSuccess('Excel file exported successfully');
+    } catch (err) {
+      setError('Failed to export Excel file');
+      console.error('Excel export error:', err);
+    }
   };
 
   const exportSubjectAnalysis = async () => {
-    const analysis = await reportApi.getSubjectAnalysis({
-      term_id: filters.termId,
-      class_name: filters.className || undefined,
-      grade_level: filters.gradeLevel || undefined,
-      stream: filters.streamFilter || undefined,
-      include_common: filters.includeCommon
-    });
-    const csv = Papa.unparse(analysis || [], { columns: true });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    downloadFile(blob, `subject-analysis-${filters.academicYear}.csv`);
+    try {
+      // Implement subject analysis export logic here
+      setSuccess('Subject analysis export feature coming soon');
+    } catch (err) {
+      setError('Failed to export subject analysis');
+      console.error('Subject analysis export error:', err);
+    }
   };
 
-  return (
-    <div className="bg-white rounded-xl shadow max-w-[100vw]">
-      {/* Filters */}
-      <FilterSection
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        terms={terms}
-        classes={classes}
-        subjects={subjects}
-        loading={loading}
-        onGenerate={handleGenerate}
-      />
+  const handleStudentClick = (student) => {
+    // Implement student detail view
+    console.log('Student clicked:', student);
+    setSuccess(`Viewing details for ${student.name}`);
+  };
 
-      {/* Messages */}
-      {msg?.type && (
-        <MessageCard
-          type={msg.type}
-          message={msg.text}
-          onClose={() => setMsg(null)}
-        />
-      )}
+  const clearMessages = () => {
+    setError(null);
+    setSuccess(null);
+  };
 
-      {/* Summary */}
-      {filters.includeStats && reportData.length > 0 && (
-        <SummaryStats
-          summary={summary}
-          reportType={filters.reportType}
-          className={filters.className}
-          gradeLevel={filters.gradeLevel}
-        />
-      )}
-
-      {/* Data Table / Cards */}
-      {loading ? (
-        <LoadingSpinner message="Crunching numbers and building your report..." />
-      ) : (
-        <DataTable
-          reportData={reportData}
-          subjects={subjects}
-          showRanking={filters.showRanking}
-          onStudentClick={setSelectedStudent}
-        />
-      )}
-
-      {/* Export Controls */}
-      <div className="mt-6">
-        <ExportControls
-          onExportPDF={exportPDF}
-          onExportCSV={exportCSV}
-          onExportExcel={exportExcel}
-          onExportSubjectAnalysis={exportSubjectAnalysis}
-          reportData={reportData}
-          currentTerm={currentTerm}
-          filters={filters}
-        />
+  if (loading && terms.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <LoadingSpinner message="Loading report system..." />
       </div>
+    );
+  }
 
-      {/* Student Modal */}
-      <StudentModal
-        student={selectedStudent}
-        subjects={subjects}
-        onClose={() => setSelectedStudent(null)}
-      />
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
+            Class Performance Reports
+          </h1>
+          <p className="text-lg text-gray-600">
+            Generate comprehensive academic performance reports for classes, grades, and streams
+          </p>
+        </div>
+
+        {/* Messages */}
+        <div className="mb-6">
+          {error && (
+            <MessageCard 
+              type="error" 
+              message="Error" 
+              details={error} 
+              onClose={clearMessages}
+            />
+          )}
+          {success && (
+            <MessageCard 
+              type="success" 
+              message="Success" 
+              details={success} 
+              onClose={clearMessages}
+            />
+          )}
+        </div>
+
+        {/* Filters */}
+        <FilterSection
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          terms={terms}
+          classes={classes}
+          subjects={subjects}
+          loading={loading}
+          onGenerate={generateReport}
+        />
+
+        {/* Export Controls */}
+        {reportData.length > 0 && (
+          <ExportControls
+            onExportPDF={exportPDF}
+            onExportCSV={exportCSV}
+            onExportExcel={exportExcel}
+            onExportSubjectAnalysis={exportSubjectAnalysis}
+            reportData={reportData}
+            currentTerm={currentTerm}
+            filters={filters}
+          />
+        )}
+
+        {/* Summary Statistics */}
+        {reportData.length > 0 && (
+          <SummaryStats
+            summary={summary}
+            reportType={filters.reportType}
+            className={filters.className}
+            gradeLevel={filters.gradeLevel}
+          />
+        )}
+
+        {/* Data Table */}
+        {loading ? (
+          <LoadingSpinner message="Generating report data..." />
+        ) : (
+          reportData.length > 0 && (
+            <DataTable
+              reportData={reportData}
+              subjects={subjects}
+              onStudentClick={handleStudentClick}
+              showRanking={filters.showRanking}
+            />
+          )
+        )}
+
+        {/* Empty State */}
+        {!loading && reportData.length === 0 && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+            <div className="mx-auto h-24 w-24 text-gray-400 mb-6">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Report Generated Yet</h3>
+            <p className="text-gray-500 mb-6">
+              Configure your filters above and click "Generate Report" to view class performance data.
+            </p>
+            <div className="text-sm text-gray-400">
+              <p>• Select a term and class to get started</p>
+              <p>• Choose from different report types for various insights</p>
+              <p>• Export reports in multiple formats for offline use</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

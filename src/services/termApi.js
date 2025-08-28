@@ -1,4 +1,4 @@
-// src/services/termApi.js - FIXED VERSION
+// src/services/termApi.js - FIXED VERSION WITH getAll
 import apiService from './api';
 
 export const termApi = {
@@ -6,25 +6,38 @@ export const termApi = {
   getTerms: async (filters = {}) => {
     try {
       const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
       
-      // Add filter parameters
-      Object.keys(filters).forEach(key => {
-        if (filters[key] !== undefined && filters[key] !== '') {
-          params.append(key, filters[key]);
+      // Build query string from filters
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value);
         }
       });
       
-      const queryString = params.toString();
-      const url = queryString ? `/terms?${queryString}` : '/terms';
+      const queryString = queryParams.toString();
       
       const response = await apiService.request(`${apiService.endpoints.terms}${queryString ? `?${queryString}` : ''}`, {
         headers: apiService.getAuthHeaders(token)
       });
       
-      return response;
+      return response; // This returns the full response object, not just the array
     } catch (error) {
       console.error('Error in getTerms:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // NEW: Backward compatibility - getAll method
+  getAll: async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await apiService.request(apiService.endpoints.terms, {
+        headers: apiService.getAuthHeaders(token)
+      });
+      return response; // This also returns the full response object
+    } catch (error) {
+      console.error('Error in getAll:', error);
       return { success: false, error: error.message };
     }
   },

@@ -2,6 +2,31 @@
 import apiService from './api';
 
 export const subjectApi = {
+  // NEW: Backward compatibility - getAll method
+  getAll: async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const response = await apiService.request(apiService.endpoints.subjects, {
+        headers: apiService.getAuthHeaders(token)
+      });
+
+      if (!response.success) {
+        console.error('Failed to get subjects:', response.error);
+        throw new Error(response.error || 'Failed to get subjects');
+      }
+
+      return response;
+
+    } catch (error) {
+      console.error('SubjectApi: Error in getAll:', error);
+      throw error;
+    }
+  },
+
   getSubjects: () => {
     const token = localStorage.getItem('token');
     return apiService.getSubjects(token);
