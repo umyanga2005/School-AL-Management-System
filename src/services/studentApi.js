@@ -376,6 +376,31 @@ class StudentApiService {
       throw error;
     }
   }
+
+  async getStudentsWithFilter(classFilter = '', page = 1, limit = 1000) {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      console.log('StudentApi: Getting students with filters:', { classFilter, page, limit });
+
+      const response = await apiService.getStudents(token, classFilter, page, limit);
+
+      if (!response.success) {
+        console.error('Failed to get students:', response.error);
+        throw new Error(response.error || 'Failed to get students');
+      }
+
+      console.log(`StudentApi: Retrieved ${response.data?.students?.length || 0} students`);
+      return response;
+
+    } catch (error) {
+      console.error('StudentApi: Error in getStudents:', error);
+      throw error;
+    }
+  }
 }
 
 export const studentApi = new StudentApiService();

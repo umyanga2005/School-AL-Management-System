@@ -66,5 +66,125 @@ export const reportApi = {
       console.error('Error in getSubjectAnalysis:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  // NEW: Performance trends across terms
+  getPerformanceTrends: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/performance-trends?${queryString}`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getPerformanceTrends:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // NEW: Class comparison data
+  getClassComparison: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/class-comparison?${queryString}`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getClassComparison:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // NEW: Student progress data
+  getStudentProgress: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/student-progress?${queryString}`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getStudentProgress:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // NEW: Grade distribution data
+  getGradeDistribution: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/grade-distribution?${queryString}`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getGradeDistribution:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // NEW: Export data
+  getExportData: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/export-data?${queryString}`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getExportData:', error);
+      return { success: false, error: error.message };
+    }
   }
 };
