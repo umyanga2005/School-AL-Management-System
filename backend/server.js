@@ -27,6 +27,7 @@ const studentRoutes = require('./routes/students');
 const subjectRoutes = require('./routes/subjects');
 const termRoutes = require('./routes/terms');
 const marksRoutes = require('./routes/marks');
+const reportsRoutes = require('./routes/reports');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -36,6 +37,7 @@ app.use('/api/students', studentRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/terms', termRoutes);
 app.use('/api/marks', marksRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
