@@ -186,5 +186,90 @@ export const reportApi = {
       console.error('Error in getExportData:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  // ADD THIS METHOD TO reportApi.js
+  getClassReport: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      // Handle all possible filters
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          if (key === 'termId') {
+            params.append('term_id', value);
+          } else if (key === 'className') {
+            params.append('class_name', value);
+          } else if (key === 'gradeLevel') {
+            params.append('grade_level', value);
+          } else if (key === 'streamFilter') {
+            params.append('stream_filter', value);
+          } else if (key === 'reportType') {
+            params.append('report_type', value);
+          } else if (key === 'academicYear') {
+            params.append('academic_year', value);
+          } else if (key === 'includeCommon') {
+            params.append('include_common', value.toString());
+          } else {
+            params.append(key, value);
+          }
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/class-report?${queryString}`;
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getClassReport:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // ADD THIS METHOD TO reportApi.js
+  getClassReport: async (filters = {}) => {
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+
+      // Handle all possible filters
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          if (key === 'termId') {
+            params.append('term_id', value);
+          } else if (key === 'className') {
+            params.append('class_name', value);
+          } else if (key === 'gradeLevel') {
+            params.append('grade_level', value);
+          } else if (key === 'streamFilter') {
+            params.append('stream_filter', value);
+          } else if (key === 'reportType') {
+            params.append('report_type', value);
+          } else if (key === 'academicYear') {
+            params.append('academic_year', value);
+          } else if (key === 'includeCommon') {
+            params.append('include_common', value.toString());
+          } else {
+            params.append(key, value);
+          }
+        }
+      });
+
+      const queryString = params.toString();
+      const url = `${apiService.endpoints.reports}/class-report?${queryString}`;
+      
+      console.log('ClassReport API call:', url);
+      
+      return await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token),
+      });
+    } catch (error) {
+      console.error('Error in getClassReport:', error);
+      return { success: false, error: error.message };
+    }
   }
+
 };

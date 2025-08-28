@@ -1198,4 +1198,246 @@ router.get('/export-data', requireAuth, async (req, res) => {
   }
 });
 
+// NEW: GET /api/reports/class-report - Class performance report (MISSING ENDPOINT)
+router.get('/class-report', requireAuth, async (req, res) => {
+  try {
+    const { 
+      term_id, 
+      class_name, 
+      grade_level, 
+      stream_filter, 
+      report_type = 'class',
+      academic_year,
+      include_common = 'true' 
+    } = req.query;
+
+    console.log('Class report request:', { 
+      term_id, class_name, grade_level, stream_filter, report_type, academic_year, include_common 
+    });
+
+    if (!term_id) {
+      return res.status(400).json({ success: false, error: 'Term ID is required' });
+    }
+
+    // Get term details first
+    const termResult = await db.execute(
+      'SELECT id, term_number, term_name, exam_year FROM terms WHERE id = $1',
+      [term_id]
+    );
+    
+    if (termResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Term not found' });
+    }
+    
+    const term = termResult.rows[0];
+
+    // Build the main query based on report type
+    let sql = `
+      SELECT 
+        s.id as student_id,
+        s.index_number,
+        s.name as student_name,
+        s.current_class,
+        sub.id as subject_id,
+        sub.subject_code,
+        sub.subject_name,
+        sub.stream,
+        m.marks,
+        m.entry_date,
+        u.username as teacher_username,
+        u.full_name as teacher_name
+      FROM students s
+      JOIN marks m ON s.id = m.student_id
+      JOIN subjects sub ON m.subject_id = sub.id
+      LEFT JOIN users u ON m.teacher_id = u.id
+      WHERE m.term_id = $1 AND s.status = 'active' AND sub.status = 'active'
+    `;
+
+    const params = [term_id];
+    let paramIndex = 2;
+
+    // Apply filters based on report type
+    if (report_type === 'class' && class_name) {
+      sql += ` AND s.current_class = $${paramIndex}`;
+      params.push(class_name);
+      paramIndex++;
+    } else if (report_type === 'grade' && grade_level) {
+      sql += ` AND s.current_class LIKE $${paramIndex}`;
+      params.push(`${grade_level}%`);
+      paramIndex++;
+    } else if (report_type === 'stream' && stream_filter) {
+      sql += ` AND sub.stream = $${paramIndex}`;
+      params.push(stream_filter);
+      paramIndex++;
+    }
+    // For 'term' report type, no additional class filtering
+    
+    if (stream_filter && report_type !== 'stream') {
+      sql += ` AND sub.stream = $${paramIndex}`;
+      params.push(stream_filter);
+      paramIndex++;
+    }
+    
+    // Filter out common subjects if requested
+    if (include_common === 'false') {
+      sql += ` AND sub.stream != 'Common'`;
+    }
+    
+    // Filter by academic year if provided
+    if (academic_year) {
+      sql += ` AND s.admission_year = $${paramIndex}`;
+      params.push(parseInt(academic_year));
+      paramIndex++;
+    }
+    
+    sql += ` ORDER BY s.current_class, s.index_number, sub.stream, sub.subject_name`;
+
+    console.log('Executing SQL:', sql);
+    console.log('With params:', params);
+
+    const result = await db.execute(sql, params);
+    
+    console.log(`Found ${result.rows.length} mark records`);
+
+    if (result.rows.length === 0) {
+      return res.json({ 
+        success: true, 
+        data: {
+          term: term,
+          reportData: [],
+          summary: {
+            totalStudents: 0,
+            totalSubjects: 0,
+            classAverage: 0,
+            highestScore: 0,
+            lowestScore: 0,
+            passRate: 0
+          }
+        }
+      });
+    }
+
+    // Process the data into the format expected by frontend
+    const studentsData = {};
+    const subjectsData = {};
+    let totalMarksSum = 0;
+    let totalMarksCount = 0;
+    let highestScore = 0;
+    let lowestScore = 100;
+    let passCount = 0;
+    let totalMarkEntries = 0;
+
+    result.rows.forEach(row => {
+      // Track subjects
+      if (!subjectsData[row.subject_id]) {
+        subjectsData[row.subject_id] = {
+          id: row.subject_id,
+          subject_code: row.subject_code,
+          subject_name: row.subject_name,
+          stream: row.stream
+        };
+      }
+
+      // Track students
+      if (!studentsData[row.student_id]) {
+        studentsData[row.student_id] = {
+          id: row.student_id,
+          name: row.student_name,
+          index_number: row.index_number,
+          current_class: row.current_class,
+          marks: [],
+          totalMarks: 0,
+          average: 0,
+          rank: 0
+        };
+      }
+
+      // Add the mark to the student's mark list
+      const markValue = parseFloat(row.marks);
+      studentsData[row.student_id].marks.push({
+        subject_id: row.subject_id,
+        subject_name: row.subject_name,
+        subject_code: row.subject_code,
+        stream: row.stream,
+        marks: markValue,
+        teacher: row.teacher_name || row.teacher_username,
+        entry_date: row.entry_date
+      });
+
+      // Update statistics
+      totalMarksSum += markValue;
+      totalMarkEntries++;
+      
+      if (markValue > highestScore) highestScore = markValue;
+      if (markValue < lowestScore) lowestScore = markValue;
+      if (markValue >= 50) passCount++;
+    });
+
+    // Calculate student totals and averages
+    let processedStudents = Object.values(studentsData);
+    
+    processedStudents.forEach(student => {
+      // Calculate total marks and average
+      const totalMarks = student.marks.reduce((sum, m) => sum + m.marks, 0);
+      student.totalMarks = totalMarks;
+      student.average = student.marks.length > 0 
+        ? parseFloat((totalMarks / student.marks.length).toFixed(2)) 
+        : 0;
+    });
+
+    // Calculate student ranks based on average
+    processedStudents.sort((a, b) => b.average - a.average);
+    
+    let currentRank = 0;
+    let lastAverage = -1;
+    processedStudents.forEach((student, index) => {
+      if (student.average !== lastAverage) {
+        currentRank = index + 1;
+        lastAverage = student.average;
+      }
+      student.rank = currentRank;
+    });
+
+    // Calculate summary statistics
+    const totalStudents = processedStudents.length;
+    const totalSubjects = Object.keys(subjectsData).length;
+    const classAverage = totalMarkEntries > 0 
+      ? parseFloat((totalMarksSum / totalMarkEntries).toFixed(2)) 
+      : 0;
+    const passRate = totalMarkEntries > 0 
+      ? parseFloat(((passCount / totalMarkEntries) * 100).toFixed(2))
+      : 0;
+
+    const responseData = {
+      term: term,
+      reportData: processedStudents,
+      subjects: Object.values(subjectsData),
+      summary: {
+        totalStudents,
+        totalSubjects,
+        classAverage,
+        highestScore,
+        lowestScore,
+        passRate
+      }
+    };
+
+    console.log('Sending response with:', {
+      studentsCount: processedStudents.length,
+      subjectsCount: Object.keys(subjectsData).length,
+      summary: responseData.summary
+    });
+
+    res.json({ success: true, data: responseData });
+
+  } catch (error) {
+    console.error('Error generating class report:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate class report',
+      details: error.message 
+    });
+  }
+});
+
 module.exports = router;

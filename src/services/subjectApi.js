@@ -203,6 +203,26 @@ export const subjectApi = {
         data: { students: [] }
       };
     }
+  },
+
+  // ADD THIS METHOD TO subjectApi.js (if it doesn't exist)
+  getAll: async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await apiService.request(apiService.endpoints.subjects, {
+        headers: apiService.getAuthHeaders(token)
+      });
+      
+      if (!response.success) {
+        console.error('Failed to get subjects:', response.error);
+        return { success: false, error: response.error };
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Error in subjectApi.getAll:', error);
+      return { success: false, error: error.message };
+    }
   }
 
 };

@@ -831,29 +831,59 @@ const ClassReport = () => {
       setLoading(true);
       setError(null);
 
-      // Load terms
+      // Load terms - FIXED data access
       const termsResponse = await termApi.getAll();
       if (termsResponse.success) {
-        // FIX: Access the terms array from the response data
-        setTerms(termsResponse.data?.terms || termsResponse.data || []);
+        // Handle different response formats
+        let termsData = termsResponse.data;
+        if (Array.isArray(termsData)) {
+          setTerms(termsData);
+        } else if (termsData && Array.isArray(termsData.terms)) {
+          setTerms(termsData.terms);
+        } else if (termsData && termsData.data && Array.isArray(termsData.data)) {
+          setTerms(termsData.data);
+        } else {
+          console.warn('Unexpected terms response format:', termsResponse);
+          setTerms([]);
+        }
       } else {
         throw new Error(termsResponse.error || 'Failed to load terms');
       }
 
-      // Load classes
+      // Load classes - FIXED data access
       const classesResponse = await classApi.getAll();
       if (classesResponse.success) {
-        // FIX: Access the classes array from the response data
-        setClasses(classesResponse.data?.classes || classesResponse.data || []);
+        // Handle different response formats
+        let classesData = classesResponse.data;
+        if (Array.isArray(classesData)) {
+          setClasses(classesData);
+        } else if (classesData && Array.isArray(classesData.classes)) {
+          setClasses(classesData.classes);
+        } else if (classesData && classesData.data && Array.isArray(classesData.data)) {
+          setClasses(classesData.data);
+        } else {
+          console.warn('Unexpected classes response format:', classesResponse);
+          setClasses([]);
+        }
       } else {
         throw new Error(classesResponse.error || 'Failed to load classes');
       }
 
-      // Load subjects
+      // Load subjects - FIXED data access
       const subjectsResponse = await subjectApi.getAll();
       if (subjectsResponse.success) {
-        // FIX: Access the subjects array from the response data
-        setSubjects(subjectsResponse.data?.subjects || subjectsResponse.data || []);
+        // Handle different response formats
+        let subjectsData = subjectsResponse.data;
+        if (Array.isArray(subjectsData)) {
+          setSubjects(subjectsData);
+        } else if (subjectsData && Array.isArray(subjectsData.subjects)) {
+          setSubjects(subjectsData.subjects);
+        } else if (subjectsData && subjectsData.data && Array.isArray(subjectsData.data)) {
+          setSubjects(subjectsData.data);
+        } else {
+          console.warn('Unexpected subjects response format:', subjectsResponse);
+          setSubjects([]);
+        }
       } else {
         throw new Error(subjectsResponse.error || 'Failed to load subjects');
       }
@@ -890,6 +920,8 @@ const ClassReport = () => {
       setError(null);
       setSuccess(null);
 
+      console.log('Generating report with filters:', filters);
+
       const response = await reportApi.getClassReport({
         termId: filters.termId,
         className: filters.className,
@@ -900,17 +932,28 @@ const ClassReport = () => {
         includeCommon: filters.includeCommon
       });
 
+      console.log('Report API response:', response);
+
       if (response.success) {
-        setReportData(response.data.reportData || []);
-        setSummary(response.data.summary || {});
-        setCurrentTerm(response.data.term);
-        setSuccess(`Report generated successfully for ${response.data.term?.term_name || 'selected term'}`);
+        // Handle the nested response structure
+        const responseData = response.data || {};
+        
+        // Set report data with safe defaults and proper structure
+        const reportData = responseData.reportData || [];
+        console.log('Processing report data:', reportData.length, 'students');
+        
+        setReportData(reportData);
+        setSummary(responseData.summary || {});
+        setCurrentTerm(responseData.term || null);
+        
+        const termName = responseData.term?.term_name || 'selected term';
+        setSuccess(`Report generated successfully for ${termName} - Found ${reportData.length} students`);
       } else {
         throw new Error(response.error || 'Failed to generate report');
       }
     } catch (err) {
-      setError(err.message);
       console.error('Error generating report:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
