@@ -6,7 +6,6 @@
     "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/react": "^13.3.0",
     "@testing-library/user-event": "^13.5.0",
-    "axios": "^1.11.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "jsonwebtoken": "^9.0.2",
@@ -20,8 +19,7 @@
     "react-scripts": "5.0.1",
     "stream-browserify": "^3.0.0",
     "util": "^0.12.5",
-    "web-vitals": "^2.1.4",
-    "xlsx": "^0.18.5"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",

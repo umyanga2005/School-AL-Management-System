@@ -2,31 +2,6 @@
 import apiService from './api';
 
 export const subjectApi = {
-  // NEW: Backward compatibility - getAll method
-  getAll: async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
-      }
-
-      const response = await apiService.request(apiService.endpoints.subjects, {
-        headers: apiService.getAuthHeaders(token)
-      });
-
-      if (!response.success) {
-        console.error('Failed to get subjects:', response.error);
-        throw new Error(response.error || 'Failed to get subjects');
-      }
-
-      return response;
-
-    } catch (error) {
-      console.error('SubjectApi: Error in getAll:', error);
-      throw error;
-    }
-  },
-
   getSubjects: () => {
     const token = localStorage.getItem('token');
     return apiService.getSubjects(token);
@@ -202,26 +177,6 @@ export const subjectApi = {
         error: error.message || 'Failed to get class students',
         data: { students: [] }
       };
-    }
-  },
-
-  // ADD THIS METHOD TO subjectApi.js (if it doesn't exist)
-  getAll: async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await apiService.request(apiService.endpoints.subjects, {
-        headers: apiService.getAuthHeaders(token)
-      });
-      
-      if (!response.success) {
-        console.error('Failed to get subjects:', response.error);
-        return { success: false, error: response.error };
-      }
-      
-      return response;
-    } catch (error) {
-      console.error('Error in subjectApi.getAll:', error);
-      return { success: false, error: error.message };
     }
   }
 
