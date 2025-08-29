@@ -36,67 +36,6 @@ create table public.class_subjects (
   constraint class_subjects_subject_id_fkey foreign KEY (subject_id) references subjects (id)
 ) TABLESPACE pg_default;
 
-create table public.grades (
-  id serial not null,
-  grade_name character varying(10) not null,
-  min_marks numeric(5, 2) not null,
-  max_marks numeric(5, 2) not null,
-  grade_point numeric(3, 2) not null,
-  description text null,
-  status character varying(20) null default 'active'::character varying,
-  created_at timestamp without time zone null default now(),
-  updated_at timestamp without time zone null default now(),
-  constraint grades_pkey primary key (id),
-  constraint grades_min_max_check check ((min_marks <= max_marks)),
-  constraint grades_point_check check (
-    (
-      (grade_point >= (0)::numeric)
-      and (grade_point <= 4.0)
-    )
-  )
-) TABLESPACE pg_default;
-
-create table public.mark_history (
-  id serial not null,
-  mark_id integer not null,
-  old_marks numeric(5, 2) null,
-  new_marks numeric(5, 2) null,
-  changed_by integer not null,
-  change_reason text null,
-  changed_at timestamp without time zone null default now(),
-  constraint mark_history_pkey primary key (id),
-  constraint mark_history_changed_by_fkey foreign KEY (changed_by) references users (id),
-  constraint mark_history_mark_id_fkey foreign KEY (mark_id) references marks (id) on delete CASCADE
-) TABLESPACE pg_default;
-
-create table public.mark_notes (
-  id serial not null,
-  mark_id integer not null,
-  note text not null,
-  created_by integer not null,
-  created_at timestamp without time zone null default now(),
-  updated_at timestamp without time zone null default now(),
-  constraint mark_notes_pkey primary key (id),
-  constraint mark_notes_created_by_fkey foreign KEY (created_by) references users (id),
-  constraint mark_notes_mark_id_fkey foreign KEY (mark_id) references marks (id) on delete CASCADE
-) TABLESPACE pg_default;
-
-create table public.mark_templates (
-  id serial not null,
-  name character varying(100) not null,
-  description text null,
-  subject_id integer not null,
-  class_name character varying(20) not null,
-  marks_pattern jsonb not null,
-  created_by integer not null,
-  status character varying(20) null default 'active'::character varying,
-  created_at timestamp without time zone null default now(),
-  updated_at timestamp without time zone null default now(),
-  constraint mark_templates_pkey primary key (id),
-  constraint mark_templates_created_by_fkey foreign KEY (created_by) references users (id),
-  constraint mark_templates_subject_id_fkey foreign KEY (subject_id) references subjects (id)
-) TABLESPACE pg_default;
-
 create table public.marks (
   id serial not null,
   student_id integer not null,
@@ -221,3 +160,29 @@ create table public.users (
 ) TABLESPACE pg_default;
 
 
+// First, let's add the class_reports table to the database schema
+// Add this to Tables schem.txt
+
+create table public.class_reports (
+  id serial not null,
+  academic_year integer not null,
+  term_id integer not null,
+  class_name character varying(50) not null,
+  calculation_method character varying(50) not null,
+  report_data jsonb not null,
+  generated_by integer not null,
+  generated_at timestamp without time zone null default now(),
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  constraint class_reports_pkey primary key (id),
+  constraint class_reports_generated_by_fkey foreign KEY (generated_by) references users (id),
+  constraint class_reports_term_id_fkey foreign KEY (term_id) references terms (id)
+) TABLESPACE pg_default;
+
+create index IF not exists idx_class_reports_class on public.class_reports using btree (class_name) TABLESPACE pg_default;
+
+create index IF not exists idx_class_reports_year on public.class_reports using btree (academic_year) TABLESPACE pg_default;
+
+create index IF not exists idx_class_reports_term on public.class_reports using btree (term_id) TABLESPACE pg_default;
+
+create index IF not exists idx_class_reports_generated_by on public.class_reports using btree (generated_by) TABLESPACE pg_default;

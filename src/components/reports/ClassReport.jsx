@@ -1,9 +1,9 @@
-// src/components/reports/ClassReport.jsx - ENHANCED VERSION
+// src/components/reports/ClassReport.jsx - UPDATED VERSION
 import React, { useState, useEffect, useCallback } from 'react';
-import { termApi, classApi, reportApi } from '../../services';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { termApi, classApi, reportApi, savedReportsApi } from '../../services';
+import { ReportPDF } from './ReportPDF';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 // A simple loading spinner component
 const Spinner = () => (
@@ -40,19 +40,27 @@ const SuccessMessage = ({ message }) => (
 const ClassReport = () => {
   const [terms, setTerms] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
   const [reportData, setReportData] = useState([]);
+  const [filteredReportData, setFilteredReportData] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [summary, setSummary] = useState({});
   const [currentTerm, setCurrentTerm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [activeTerms, setActiveTerms] = useState([]);
+  const [sections, setSections] = useState([]);
 
   const [filters, setFilters] = useState({
-    reportType: 'class', // 'class' or 'term'
+    reportType: 'class',
     termId: '',
     className: '',
-    includeCommon: true
+    academicYear: new Date().getFullYear(),
+    includeCommon: true,
+    rankingMethod: 'totalMarks',
+    section: ''
   });
 
   // Load initial data for dropdowns
@@ -60,21 +68,44 @@ const ClassReport = () => {
     setLoading(true);
     setError('');
     try {
-      const [termsRes, classesRes] = await Promise.all([
+      const [termsRes, classesRes, yearsRes, activeTermsRes] = await Promise.all([
         termApi.getTerms(),
-        classApi.getClasses()
+        classApi.getClasses(),
+        termApi.getStats(),
+        termApi.getCurrentTerm()
       ]);
       
       const termsData = termsRes.data?.terms || [];
       setTerms(termsData);
-      if (termsData.length > 0) {
-        setFilters(prev => ({ ...prev, termId: termsData[0].id.toString() }));
-      }
-
+      
       const classesData = classesRes.data?.classes || [];
       setClasses(classesData);
+      
+      // Extract sections from class names (Grade 12, Grade 13, etc.)
+      const uniqueSections = [...new Set(classesData
+        .map(c => c.class_name)
+        .filter(name => name.match(/^(12|13)[A-Za-z0-9]*$/)) // Match classes starting with 12 or 13
+        .map(name => name.substring(0, 2)) // Get first 2 characters (12 or 13)
+        .map(grade => `Grade ${grade}`) // Format as "Grade 12", "Grade 13"
+      )].sort();
+      
+      setSections(uniqueSections);
+      
       if (classesData.length > 0) {
         setFilters(prev => ({ ...prev, className: classesData[0].class_name }));
+      }
+
+      // Extract academic years from terms
+      const years = [...new Set(termsData.map(term => term.exam_year))].sort((a, b) => b - a);
+      setAcademicYears(years);
+      
+      // Set active term if available
+      if (activeTermsRes.data?.term) {
+        setActiveTerms([activeTermsRes.data.term]);
+        setFilters(prev => ({ ...prev, termId: activeTermsRes.data.term.id.toString() }));
+      } else if (termsData.length > 0) {
+        const recentTerm = termsData.sort((a, b) => b.exam_year - a.exam_year || b.term_number - a.term_number)[0];
+        setFilters(prev => ({ ...prev, termId: recentTerm.id.toString() }));
       }
 
     } catch (err) {
@@ -84,21 +115,228 @@ const ClassReport = () => {
     }
   }, []);
 
+
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
 
+  // Filter classes based on selected section
+  useEffect(() => {
+    if (filters.section) {
+      const gradeNumber = filters.section.replace('Grade ', ''); // Extract "12" or "13"
+      const filteredClasses = classes.filter(c => c.class_name.startsWith(gradeNumber));
+      if (filteredClasses.length > 0 && !filteredClasses.some(c => c.class_name === filters.className)) {
+        setFilters(prev => ({ ...prev, className: filteredClasses[0].class_name }));
+      }
+    }
+  }, [filters.section, classes]);
+
+  // Filter students based on search input
+  useEffect(() => {
+    if (studentSearch.trim() === '') {
+      setFilteredReportData(reportData);
+    } else {
+      const searchTerm = studentSearch.toLowerCase();
+      const filtered = reportData.filter(student => 
+        student.name.toLowerCase().includes(searchTerm) || 
+        student.index_number.toString().includes(searchTerm)
+      );
+      setFilteredReportData(filtered);
+    }
+  }, [studentSearch, reportData]);
+
+  // Add new state for sorting
+  const [sortConfig, setSortConfig] = useState({
+    key: 'rank',
+    direction: 'ascending'
+  });
+
+  // Add sorting handler
+  const handleSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Apply sorting to filteredReportData
+  useEffect(() => {
+    if (filteredReportData.length > 0 && sortConfig.key) {
+      const sortedData = [...filteredReportData].sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortConfig.key) {
+          case 'rank':
+            aValue = a.rank;
+            bValue = b.rank;
+            break;
+          case 'index_number':
+            aValue = a.index_number;
+            bValue = b.index_number;
+            break;
+          case 'name':
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case 'class':
+            aValue = a.current_class;
+            bValue = b.current_class;
+            break;
+          case 'total':
+            aValue = a.totalMarks;
+            bValue = b.totalMarks;
+            break;
+          case 'average':
+            const aNonCommon = a.marks.filter(m => 
+              subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+            );
+            aValue = aNonCommon.length > 0 
+              ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / aNonCommon.length 
+              : 0;
+            
+            const bNonCommon = b.marks.filter(m => 
+              subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+            );
+            bValue = bNonCommon.length > 0 
+              ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length 
+              : 0;
+            break;
+          default:
+            const subjectMarkA = a.marks.find(m => {
+              const subject = subjects.find(s => s.name === sortConfig.key);
+              return subject && m.subject_id === subject.id;
+            });
+            const subjectMarkB = b.marks.find(m => {
+              const subject = subjects.find(s => s.name === sortConfig.key);
+              return subject && m.subject_id === subject.id;
+            });
+            
+            aValue = subjectMarkA ? subjectMarkA.marks : 0;
+            bValue = subjectMarkB ? subjectMarkB.marks : 0;
+        }
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+      
+      setFilteredReportData(sortedData);
+    }
+  }, [sortConfig, reportData, subjects]);
+
   const handleFilterChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFilters(prev => ({ 
-      ...prev, 
-      [name]: type === 'checkbox' ? checked : value 
-    }));
     
-    // If report type is changed to full term, clear the class name
-    if (name === 'reportType' && value === 'term') {
-      setFilters(prev => ({ ...prev, className: '' }));
+    setFilters(prev => {
+      const newFilters = { 
+        ...prev, 
+        [name]: type === 'checkbox' ? checked : value 
+      };
+      
+      // If report type is changed to full term, clear the class name
+      if (name === 'reportType' && value === 'term') {
+        newFilters.className = '';
+      }
+      
+      // If ranking method is average or zscore, disable includeCommon
+      if (name === 'rankingMethod' && (value === 'average' || value === 'zscore')) {
+        newFilters.includeCommon = false;
+      }
+      
+      return newFilters;
+    });
+  };
+
+  const handleStudentSearch = (e) => {
+    setStudentSearch(e.target.value);
+  };
+
+  // Calculate Z-Score for a student
+  const calculateZScore = (student, allStudents, subjects) => {
+    const nonCommonSubjects = subjects.filter(subject => subject.stream !== 'Common');
+    
+    if (nonCommonSubjects.length === 0) return 0;
+    
+    const studentNonCommonMarks = student.marks.filter(mark => 
+      nonCommonSubjects.some(subject => subject.id === mark.subject_id)
+    );
+    
+    if (studentNonCommonMarks.length === 0) return 0;
+    
+    const studentAvg = studentNonCommonMarks.reduce((sum, mark) => sum + mark.marks, 0) / studentNonCommonMarks.length;
+    
+    const allAverages = allStudents.map(s => {
+      const sNonCommonMarks = s.marks.filter(mark => 
+        nonCommonSubjects.some(subject => subject.id === mark.subject_id)
+      );
+      return sNonCommonMarks.length > 0 
+        ? sNonCommonMarks.reduce((sum, mark) => sum + mark.marks, 0) / sNonCommonMarks.length 
+        : 0;
+    });
+    
+    const mean = allAverages.reduce((sum, avg) => sum + avg, 0) / allAverages.length;
+    const squaredDiffs = allAverages.map(avg => Math.pow(avg - mean, 2));
+    const variance = squaredDiffs.reduce((sum, diff) => sum + diff, 0) / allAverages.length;
+    const stdDev = Math.sqrt(variance);
+    
+    if (stdDev === 0) return 0;
+    
+    return (studentAvg - mean) / stdDev;
+  };
+
+  // Apply ranking based on selected method
+  const applyRanking = (students, rankingMethod, subjects) => {
+    let rankedStudents = [...students];
+    
+    if (rankingMethod === 'totalMarks') {
+      rankedStudents.sort((a, b) => b.totalMarks - a.totalMarks);
+    } else if (rankingMethod === 'average') {
+      rankedStudents.sort((a, b) => {
+        const aNonCommon = a.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common');
+        const bNonCommon = b.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common');
+        
+        const aAvg = aNonCommon.length > 0 ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / aNonCommon.length : 0;
+        const bAvg = bNonCommon.length > 0 ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length : 0;
+        
+        return bAvg - aAvg;
+      });
+    } else if (rankingMethod === 'zscore') {
+      rankedStudents.forEach(student => {
+        student.zScore = calculateZScore(student, students, subjects);
+      });
+      
+      rankedStudents.sort((a, b) => b.zScore - a.zScore);
     }
+    
+    let currentRank = 0;
+    let lastValue = -1;
+    
+    rankedStudents.forEach((student, index) => {
+      let currentValue;
+      
+      if (rankingMethod === 'totalMarks') {
+        currentValue = student.totalMarks;
+      } else if (rankingMethod === 'average') {
+        const nonCommon = student.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common');
+        currentValue = nonCommon.length > 0 ? nonCommon.reduce((sum, m) => sum + m.marks, 0) / nonCommon.length : 0;
+      } else {
+        currentValue = student.zScore;
+      }
+      
+      if (currentValue !== lastValue) {
+        currentRank = index + 1;
+        lastValue = currentValue;
+      }
+      
+      student.rank = currentRank;
+    });
+    
+    return rankedStudents;
   };
 
   const handleGenerateReport = async () => {
@@ -115,6 +353,7 @@ const ClassReport = () => {
     setError('');
     setSuccess('');
     setReportData([]);
+    setFilteredReportData([]);
     setSubjects([]);
     setSummary({});
     setCurrentTerm(null);
@@ -132,11 +371,17 @@ const ClassReport = () => {
       const response = await reportApi.getTermReport(reportFilters);
       
       if (response.success) {
-        setReportData(response.data?.students || []);
-        setSubjects(response.data?.subjects || []);
+        let studentsData = response.data?.students || [];
+        let subjectsData = response.data?.subjects || [];
+        
+        studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
+        
+        setReportData(studentsData);
+        setFilteredReportData(studentsData);
+        setSubjects(subjectsData);
         setSummary(response.data?.summary || {});
         setCurrentTerm(response.data?.term || null);
-        setSuccess(`Report generated successfully. Found ${response.data?.students?.length || 0} students.`);
+        setSuccess(`Report generated successfully. Found ${studentsData.length} students.`);
       } else {
         throw new Error(response.error || 'Failed to generate report');
       }
@@ -148,91 +393,67 @@ const ClassReport = () => {
   };
 
   const handleExportPDF = () => {
-    if (reportData.length === 0) return;
-
-    const doc = new jsPDF();
-    const termName = currentTerm ? `${currentTerm.term_name} (${currentTerm.exam_year})` : 'Term Report';
-    const reportType = filters.reportType === 'class' ? `Class: ${filters.className}` : 'Full Term';
-    const title = `Mark Sheet - ${reportType} - ${termName}`;
-
-    // Add title
-    doc.setFontSize(16);
-    doc.text(title, 14, 16);
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 24);
+    if (filteredReportData.length === 0) return;
     
-    // Summary table
-    const summaryData = [
-      ['Total Students', summary.totalStudents || 0],
-      ['Total Subjects', summary.totalSubjects || 0],
-      ['Class Average', `${summary.classAverage || 0}%`],
-      ['Highest Score', `${summary.highestScore || 0}%`],
-      ['Lowest Score', `${summary.lowestScore || 0}%`]
-    ];
-    
-    doc.autoTable({
-      head: [['Metric', 'Value']],
-      body: summaryData,
-      startY: 30,
-      theme: 'grid',
-      headStyles: { fillColor: [66, 139, 202] }
+    ReportPDF.generatePDF({
+      students: filteredReportData,
+      subjects,
+      summary,
+      currentTerm,
+      filters,
+      className: filters.className
     });
+  };
+
+  const handleExportExcel = () => {
+    if (filteredReportData.length === 0) return;
     
-    // Student marks table
-    const tableColumn = ["Rank", "Index No", "Name", "Class"];
-    
-    // Add subject columns
-    subjects.forEach(subject => {
-      tableColumn.push(subject.name);
-    });
-    
-    tableColumn.push("Total");
-    tableColumn.push("Average");
-    
-    const tableRows = [];
-    
-    reportData.forEach(student => {
-      const studentData = [
-        student.rank,
-        student.index_number,
-        student.name,
-        student.current_class
-      ];
+    const excelData = filteredReportData.map(student => {
+      const studentRow = {
+        'Rank': student.rank,
+        'Index Number': student.index_number,
+        'Name': student.name,
+        'Class': student.current_class
+      };
       
-      // Add marks for each subject
       subjects.forEach(subject => {
         const subjectMark = student.marks.find(m => m.subject_id === subject.id);
-        studentData.push(subjectMark ? subjectMark.marks : '-');
+        studentRow[subject.name] = subjectMark ? subjectMark.marks : '';
       });
       
-      studentData.push(student.totalMarks.toFixed(2));
-      studentData.push(`${student.average}%`);
+      studentRow['Total Marks'] = student.totalMarks;
       
-      tableRows.push(studentData);
-    });
-    
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: doc.lastAutoTable.finalY + 10,
-      theme: 'grid',
-      headStyles: { fillColor: [66, 139, 202] },
-      styles: { fontSize: 8 },
-      columnStyles: {
-        0: { cellWidth: 15 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 20 }
+      // Always include average column
+      const nonCommonMarks = student.marks.filter(m => 
+        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+      );
+      studentRow['Average'] = nonCommonMarks.length > 0 
+        ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length)
+        : 0;
+      
+      if (filters.rankingMethod === 'zscore') {
+        studentRow['Z-Score'] = student.zScore || 0;
       }
+      
+      return studentRow;
     });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
     
-    doc.save(`${title.replace(/\s/g, '_')}.pdf`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Mark Sheet');
+    
+    const fileName = filters.reportType === 'class' 
+      ? `Class_${filters.className}_Mark_Sheet.xlsx` 
+      : 'Full_Term_Mark_Sheet.xlsx';
+    
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleExportCSV = () => {
-    if (reportData.length === 0) return;
+    if (filteredReportData.length === 0) return;
     
-    const csvData = reportData.map(student => {
+    const csvData = filteredReportData.map(student => {
       const studentRow = {
         Rank: student.rank,
         Index_Number: student.index_number,
@@ -240,14 +461,24 @@ const ClassReport = () => {
         Class: student.current_class
       };
       
-      // Add marks for each subject
       subjects.forEach(subject => {
         const subjectMark = student.marks.find(m => m.subject_id === subject.id);
         studentRow[subject.name.replace(/\s/g, '_')] = subjectMark ? subjectMark.marks : '';
       });
       
       studentRow.Total_Marks = student.totalMarks.toFixed(2);
-      studentRow.Average_Percentage = student.average;
+      
+      // Always include average
+      const nonCommonMarks = student.marks.filter(m => 
+        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+      );
+      studentRow.Average = nonCommonMarks.length > 0 
+        ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
+        : '0.00';
+      
+      if (filters.rankingMethod === 'zscore') {
+        studentRow.Z_Score = student.zScore ? student.zScore.toFixed(2) : '0.00';
+      }
       
       return studentRow;
     });
@@ -266,55 +497,42 @@ const ClassReport = () => {
     document.body.removeChild(link);
   };
 
-  const handleExportSubjectAnalysis = async () => {
-    if (!filters.termId) {
-      setError("Please select a term to export subject analysis.");
-      return;
-    }
-
+  const handleSaveReport = async () => {
+    if (filteredReportData.length === 0) return;
+    
     setLoading(true);
     try {
-      const analysisFilters = { term_id: filters.termId };
-      if (filters.reportType === 'class') {
-        analysisFilters.class_name = filters.className;
-      }
+      const reportToSave = {
+        termId: parseInt(filters.termId),
+        className: filters.reportType === 'class' ? filters.className : null,
+        academicYear: parseInt(filters.academicYear),
+        rankingMethod: filters.rankingMethod,
+        reportData: {
+          students: filteredReportData.map(student => ({
+            id: student.id,
+            index_number: student.index_number,
+            name: student.name,
+            class: student.current_class,
+            rank: student.rank,
+            totalMarks: student.totalMarks,
+            average: student.average,
+            zScore: student.zScore,
+            marks: student.marks
+          })),
+          subjects: subjects,
+          summary: summary
+        }
+      };
       
-      const response = await reportApi.getSubjectAnalysis(analysisFilters);
+      const response = await savedReportsApi.saveReport(reportToSave);
       
       if (response.success) {
-        const csvData = response.data.subjectAnalysis.map(subject => ({
-          Subject_Code: subject.subject_code,
-          Subject_Name: subject.subject_name,
-          Stream: subject.stream,
-          Student_Count: subject.student_count,
-          Average_Marks: subject.average_marks,
-          Highest_Marks: subject.highest_marks,
-          Lowest_Marks: subject.lowest_marks,
-          Distinction_Count: subject.distinction_count,
-          Credit_Count: subject.credit_count,
-          Pass_Count: subject.pass_count,
-          Fail_Count: subject.fail_count
-        }));
-
-        const csv = Papa.unparse(csvData);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        const fileName = filters.reportType === 'class' 
-          ? `Class_${filters.className}_Subject_Analysis.csv` 
-          : 'Full_Term_Subject_Analysis.csv';
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setSuccess('Subject analysis exported successfully.');
+        setSuccess('Report saved successfully for future reference.');
       } else {
-        throw new Error(response.error || 'Failed to generate subject analysis');
+        throw new Error(response.error || 'Failed to save report');
       }
     } catch (err) {
-      setError(err.message);
+      setError('Failed to save report: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -326,7 +544,23 @@ const ClassReport = () => {
       
       {/* --- Filters Section --- */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 items-end">
+          {/* Section Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+            <select 
+              name="section" 
+              value={filters.section} 
+              onChange={handleFilterChange} 
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Sections</option>
+              {sections.map(section => (
+                <option key={section} value={section}>{section}</option>
+              ))}
+            </select>
+          </div>
+          
           {/* Report Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
@@ -341,6 +575,21 @@ const ClassReport = () => {
             </select>
           </div>
           
+          {/* Academic Year */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+            <select 
+              name="academicYear" 
+              value={filters.academicYear} 
+              onChange={handleFilterChange} 
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {academicYears.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          
           {/* Term */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Term</label>
@@ -351,11 +600,14 @@ const ClassReport = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Term</option>
-              {terms.map(term => (
-                <option key={term.id} value={term.id}>
-                  {term.term_name} ({term.exam_year})
-                </option>
-              ))}
+              {terms
+                .filter(term => term.exam_year == filters.academicYear)
+                .map(term => (
+                  <option key={term.id} value={term.id}>
+                    {term.term_name} {activeTerms.some(t => t.id === term.id) && '(Active)'}
+                  </option>
+                ))
+              }
             </select>
           </div>
           
@@ -370,9 +622,30 @@ const ClassReport = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">Select Class</option>
-              {classes.map(c => (
-                <option key={c.id} value={c.class_name}>{c.class_name}</option>
-              ))}
+              {classes
+                .filter(c => {
+                  if (!filters.section) return true;
+                  const gradeNumber = filters.section.replace('Grade ', '');
+                  return c.class_name.startsWith(gradeNumber);
+                })
+                .map(c => (
+                  <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
+                ))}
+            </select>
+          </div>
+          
+          {/* Ranking Method */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ranking Method</label>
+            <select 
+              name="rankingMethod" 
+              value={filters.rankingMethod} 
+              onChange={handleFilterChange} 
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="totalMarks">Total Marks</option>
+              <option value="average">Average (No Common)</option>
+              <option value="zscore">Z-Score (No Common)</option>
             </select>
           </div>
           
@@ -384,18 +657,37 @@ const ClassReport = () => {
               name="includeCommon"
               checked={filters.includeCommon}
               onChange={handleFilterChange}
+              disabled={filters.rankingMethod === 'average' || filters.rankingMethod === 'zscore'}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="includeCommon" className="ml-2 block text-sm text-gray-900">
               Include Common Subjects
+              {(filters.rankingMethod === 'average' || filters.rankingMethod === 'zscore') && 
+                <span className="text-xs text-gray-500 ml-1">(Disabled for this ranking method)</span>
+              }
             </label>
+          </div>
+        </div>
+        
+        <div className="mt-6 flex justify-between items-center">
+          {/* Student Search */}
+          <div className="w-1/2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search Students</label>
+            <input
+              type="text"
+              placeholder="Search by name or index number..."
+              value={studentSearch}
+              onChange={handleStudentSearch}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={reportData.length === 0}
+            />
           </div>
           
           {/* Generate Button */}
           <button 
             onClick={handleGenerateReport} 
             disabled={loading} 
-            className="w-full bg-blue-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
+            className="bg-blue-600 text-white px-6 py-2 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
           >
             {loading ? 'Generating...' : 'Generate Report'}
           </button>
@@ -408,7 +700,7 @@ const ClassReport = () => {
       {/* --- Report Display Section --- */}
       {loading && <Spinner />}
 
-      {!loading && reportData.length > 0 && (
+      {!loading && filteredReportData.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg shadow overflow-hidden mb-8">
           <div className="p-4 flex justify-between items-center border-b">
             <div>
@@ -416,14 +708,26 @@ const ClassReport = () => {
               <p className="text-sm text-gray-600">
                 {currentTerm && `${currentTerm.term_name} (${currentTerm.exam_year})`}
                 {filters.reportType === 'class' && ` • Class: ${filters.className}`}
+                {` • Ranking by: ${filters.rankingMethod === 'totalMarks' ? 'Total Marks' : 
+                  filters.rankingMethod === 'average' ? 'Average (No Common Subjects)' : 'Z-Score (No Common Subjects)'}`}
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                Showing {filteredReportData.length} of {reportData.length} students
+                {studentSearch && ` filtered by "${studentSearch}"`}
               </p>
             </div>
-            <div className="flex space-x-2">
-              <button 
+            <div className="flex space-x-2 flex-wrap gap-2">
+              {/* --- <button 
                 onClick={handleExportCSV} 
                 className="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700"
               >
-                Export CSV
+                Export CSV Button 
+              </button> --- */}
+              <button 
+                onClick={handleExportExcel} 
+                className="bg-blue-600 text-white px-4 py-2 text-sm rounded-md hover:bg-blue-700"
+              >
+                Export Excel
               </button>
               <button 
                 onClick={handleExportPDF} 
@@ -432,10 +736,10 @@ const ClassReport = () => {
                 Export PDF
               </button>
               <button 
-                onClick={handleExportSubjectAnalysis} 
-                className="bg-purple-600 text-white px-4 py-2 text-sm rounded-md hover:bg-purple-700"
+                onClick={handleSaveReport} 
+                className="bg-yellow-600 text-white px-4 py-2 text-sm rounded-md hover:bg-yellow-700"
               >
-                Subject Analysis
+                Save Report
               </button>
             </div>
           </div>
@@ -472,24 +776,51 @@ const ClassReport = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase">Rank</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase">Index No</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase">Class</th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('rank')}
+                  >
+                    Rank {sortConfig.key === 'rank' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  </th>
+
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('index_number')}
+                  >
+                    Index No {sortConfig.key === 'index_number' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                    Class
+                  </th>
                   
                   {/* Subject Columns */}
                   {subjects.map(subject => (
-                    <th key={subject.id} className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase">
+                    <th key={subject.id} className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
                       {subject.name}
                     </th>
                   ))}
                   
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase">Total</th>
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase">Average</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
+                    Total
+                  </th>
+                  
+                  {/* Always show average column */}
+                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
+                    Average
+                  </th>
+                  
+                  {filters.rankingMethod === 'zscore' && (
+                    <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Z-Score
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {reportData.map((student) => (
+                {filteredReportData.map((student) => (
                   <tr key={student.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {student.rank}
@@ -514,29 +845,32 @@ const ClassReport = () => {
                       );
                     })}
                     
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold text-blue-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
                       {student.totalMarks.toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold text-green-600">
-                      {student.average}%
+                    
+                    {/* Always show average */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                      {(() => {
+                        const nonCommonMarks = student.marks.filter(m => 
+                          subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+                        );
+                        return nonCommonMarks.length > 0 
+                          ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
+                          : '0.00';
+                      })()}
                     </td>
+                    
+                    {filters.rankingMethod === 'zscore' && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                        {student.zScore ? student.zScore.toFixed(2) : '0.00'}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {!loading && !error && reportData.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow-md">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No Report Data</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Please select your filters and click "Generate Report" to view data.
-          </p>
         </div>
       )}
     </div>

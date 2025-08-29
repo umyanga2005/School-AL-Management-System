@@ -4,7 +4,8 @@ import { studentApi } from './studentApi';
 import { subjectApi } from './subjectApi';
 import { termApi } from './termApi';
 import { marksApi } from './marksApi';
-import { reportApi } from './reportApi'; // <-- ADD THIS LINE
+import { reportApi } from './reportApi';
+import { savedReportsApi } from './savedReportsApi'; 
 
 // Create classApi if it doesn't exist
 const classApi = {
@@ -46,5 +47,6 @@ export {
   termApi,
   marksApi,
   classApi,
-  reportApi // <-- AND ADD THIS LINE
+  reportApi,
+  savedReportsApi
 };

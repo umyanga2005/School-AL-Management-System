@@ -28,6 +28,8 @@ const subjectRoutes = require('./routes/subjects');
 const termRoutes = require('./routes/terms');
 const marksRoutes = require('./routes/marks');
 const reportsRoutes = require('./routes/reports');
+const classRoutes = require('./routes/classes');
+const savedReportsRoutes = require('./routes/savedReports');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -38,6 +40,8 @@ app.use('/api/subjects', subjectRoutes);
 app.use('/api/terms', termRoutes);
 app.use('/api/marks', marksRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/classes', classRoutes);
+app.use('/api/saved-reports', savedReportsRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

@@ -17,7 +17,8 @@ class ApiService {
       terms: `${this.baseURL}/terms`,
       marks: `${this.baseURL}/marks`,
       classes: `${this.baseURL}/classes`,
-      reports: `${this.baseURL}/reports`
+      reports: `${this.baseURL}/reports`,
+      savedReports: `${this.baseURL}/saved-reports`
     };
   }
 
