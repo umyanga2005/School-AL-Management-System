@@ -11,15 +11,17 @@ import ChangePasswordForm from './components/auth/ChangePasswordForm';
 // Layout
 import Header from './components/layout/Header';
 
-// Dashboards
-import TeacherDashboard from './components/dashboards/TeacherDashboard';
-import CoordinatorDashboard from './components/dashboards/CoordinatorDashboard';
-import AdminDashboard from './components/dashboards/AdminDashboard';
+// Dashboard
+import Dashboard from './components/dashboard/Dashboard';
+
+// AttendenceDashboards
+import TeacherAttendenceDashboard from './components/Attendence/TeacherAttendenceDashboard';
+import CoordinatorAttendenceDashboard from './components/Attendence/CoordinatorAttendenceDashboard';
+import AdminAttendenceDashboard from './components/Attendence/AdminAttendenceDashboard';
 
 // Student Management
 import StudentList from './components/students/StudentList';
 import StudentDetails from './components/students/StudentDetails';
-
 
 // Subject Management
 import SubjectList from './components/subjects/SubjectList';
@@ -155,10 +157,13 @@ const App = () => {
   };
 
   // -------------------- Sidebar Menu --------------------
-  const renderSidebar = () => {
-    if (!currentUser) return null;
+  const getMenuItems = () => {
+    if (!currentUser) return [];
 
-    let menuItems = [{ key: 'dashboard', label: 'Dashboard', icon: '📊' }];
+    let menuItems = [
+      { key: 'dashboard', label: 'Dashboard', icon: '🏠' },
+      { key: 'attendance', label: 'Attendance', icon: '📊' }
+    ];
 
     // Admin menu items
     if (currentUser.role === 'admin') {
@@ -177,7 +182,7 @@ const App = () => {
       menuItems = [
         ...menuItems,
         { key: 'marks', label: 'Marks Entry', icon: '📝' },
-        { key: 'attendance', label: 'Attendance', icon: '✅' },
+        { key: 'reports', label: 'Reports', icon: '📈' },
       ];
     }
 
@@ -186,83 +191,93 @@ const App = () => {
       menuItems = [
         ...menuItems,
         { key: 'reports', label: 'Reports', icon: '📈' },
-        { key: 'attendance', label: 'Attendance', icon: '✅' },
       ];
     }
 
+    return menuItems;
+  };
+
+  const renderDesktopSidebar = () => {
+    const menuItems = getMenuItems();
+
     return (
-      <>
-        {/* Mobile sidebar overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-40 lg:hidden">
-            <div 
-              className="fixed inset-0 bg-gray-600 bg-opacity-75"
-              onClick={() => setSidebarOpen(false)}
-            ></div>
+      <div className="hidden lg:flex lg:flex-shrink-0">
+        <div className="flex flex-col w-64 bg-white border-r border-gray-200">
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-800">Menu</h2>
           </div>
-        )}
 
-        {/* Sidebar */}
-        <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
-          <div className="flex flex-col h-full">
-            {/* Sidebar Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-800">Menu</h2>
+          {/* Menu Items */}
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+            {menuItems.map(item => (
               <button
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden text-gray-500 hover:text-gray-700"
+                key={item.key}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors duration-200 ${
+                  activeMenu === item.key 
+                    ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500' 
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => handleMenuClick(item.key)}
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <span className="text-xl mr-3">{item.icon}</span>
+                <span className="font-medium">{item.label}</span>
               </button>
-            </div>
+            ))}
+          </nav>
 
-
-
-            {/* Menu Items */}
-            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-              {menuItems.map(item => (
-                <button
-                  key={item.key}
-                  className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors duration-200 ${
-                    activeMenu === item.key 
-                      ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500' 
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                  onClick={() => handleMenuClick(item.key)}
-                >
-                  <span className="text-xl mr-3">{item.icon}</span>
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              ))}
-            </nav>
-
-            {/* User Info Footer */}
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex items-center space-x-3">
-                <div className="flex-shrink-0">
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <span className="text-sm font-medium text-blue-600">
-                      {(currentUser.name || currentUser.username)?.charAt(0)?.toUpperCase()}
-                    </span>
-                  </div>
+          {/* User Info Footer */}
+          <div className="p-4 border-t border-gray-200">
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-sm font-medium text-blue-600">
+                    {(currentUser.name || currentUser.username)?.charAt(0)?.toUpperCase()}
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {currentUser.name || currentUser.username}
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize">
-                    {currentUser.role}
-                  </p>
-                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {currentUser.name || currentUser.username}
+                </p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {currentUser.role}
+                </p>
               </div>
             </div>
           </div>
         </div>
-      </>
+      </div>
+    );
+  };
+
+  const renderMobileBottomNav = () => {
+    const menuItems = getMenuItems();
+    
+    // For mobile, we'll show only the most important items
+    const mobileMenuItems = menuItems.filter(item => 
+      ['dashboard', 'attendance', 'students', 'marks', 'reports'].includes(item.key)
+    );
+
+    return (
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+        <div className="flex justify-around py-2">
+          {mobileMenuItems.map(item => (
+            <button
+              key={item.key}
+              className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 ${
+                activeMenu === item.key 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600'
+              }`}
+              onClick={() => handleMenuClick(item.key)}
+            >
+              <span className="text-xl">{item.icon}</span>
+              <span className="text-xs mt-1">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     );
   };
 
@@ -275,6 +290,8 @@ const App = () => {
     };
 
     switch (activeMenu) {
+      case 'dashboard':
+        return <Dashboard currentUser={currentUser} />;
       case 'students':
         return <StudentList onStudentSelect={handleStudentSelect} />;
       case 'subjects':
@@ -286,23 +303,8 @@ const App = () => {
       case 'reports':
         return <ClassReport {...commonProps} />;
       case 'attendance':
-        // This would be your existing attendance component
-        return currentUser.role === 'teacher' ? (
-          <TeacherDashboard
-            currentUser={currentUser}
-            attendanceRecords={attendanceRecords}
-            onAttendanceUpdate={handleAttendanceUpdate}
-            selectedClass={selectedClass}
-          />
-        ) : (
-          <CoordinatorDashboard
-            attendanceRecords={attendanceRecords}
-            selectedClass={selectedClass}
-          />
-        );
-      default:
         if (currentUser.role === 'admin') return (
-          <AdminDashboard
+          <AdminAttendenceDashboard
             currentUser={currentUser}
             teachers={teachers}
             setTeachers={setTeachers}
@@ -311,7 +313,7 @@ const App = () => {
           />
         );
         if (currentUser.role === 'teacher') return (
-          <TeacherDashboard
+          <TeacherAttendenceDashboard
             currentUser={currentUser}
             attendanceRecords={attendanceRecords}
             onAttendanceUpdate={handleAttendanceUpdate}
@@ -319,12 +321,14 @@ const App = () => {
           />
         );
         if (currentUser.role === 'coordinator') return (
-          <CoordinatorDashboard
+          <CoordinatorAttendenceDashboard
             attendanceRecords={attendanceRecords}
             selectedClass={selectedClass}
           />
         );
         return null;
+      default:
+        return <Dashboard currentUser={currentUser} />;
     }
   };
 
@@ -357,9 +361,9 @@ const App = () => {
             onLogout={handleLogout}
             onMenuClick={() => setSidebarOpen(true)}
           />
-          <div className="flex"> {/* pt-16 to account for fixed header */}
-            {renderSidebar()}
-            <div className="flex-1 lg:ml-0 overflow-hidden">
+          <div className="flex pt-16"> {/* pt-16 to account for fixed header */}
+            {renderDesktopSidebar()}
+            <div className="flex-1 lg:ml-0 overflow-hidden pb-16 lg:pb-0"> {/* pb-16 for mobile bottom nav */}
               <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
                 <div className="container mx-auto px-4 py-6">
                   {renderActivePage()}
@@ -373,6 +377,7 @@ const App = () => {
                 />
               )}
             </div>
+            {renderMobileBottomNav()}
           </div>
         </>
       )}
