@@ -134,9 +134,16 @@ export const ReportPDF = {
         doc.line(x, y, x, y + headerHeight);
         x += rankColWidth;
 
-        doc.saveGraphicsState();
-        doc.text('Percentage', x + 7, y + 23, { angle: 90 });
-        doc.restoreGraphicsState();
+        // For Full Term Report, show Z-Score instead of Percentage
+        if (filters.reportType === 'term') {
+          doc.saveGraphicsState();
+          doc.text('Z-Score', x + 10, y + 20, { angle: 90 });
+          doc.restoreGraphicsState();
+        } else {
+          doc.saveGraphicsState();
+          doc.text('Percentage', x + 10, y + 20, { angle: 90 });
+          doc.restoreGraphicsState();
+        }
         doc.line(x, y, x, y + headerHeight);
       }
 
@@ -216,7 +223,14 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += rankColWidth;
 
-        doc.text('', x + percentageColWidth/2, y + 4, { align: 'center' });
+        // For Full Term Report, show Z-Score instead of Percentage
+        if (filters.reportType === 'term') {
+          const zScore = student.zScore ? student.zScore.toFixed(2) : '0.00';
+          doc.text(zScore, x + percentageColWidth/2, y + 4, { align: 'center' });
+        } else {
+          // For Class Report, show percentage (empty as per original)
+          doc.text('', x + percentageColWidth/2, y + 4, { align: 'center' });
+        }
         doc.line(x, y, x, y + rowHeight);
 
         y += rowHeight;
