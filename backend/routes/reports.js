@@ -153,7 +153,7 @@ router.get('/term-report', requireAuth, async (req, res) => {
       }
 
       // Add the mark to the student's mark list (even if null/absent)
-      const markValue = row.marks !== null ? parseFloat(row.marks) : null;
+      const markValue = row.marks !== null && row.marks !== '' ? parseFloat(row.marks) : null;
       
       studentsData[row.student_id].marks.push({
         subject_id: row.subject_id,

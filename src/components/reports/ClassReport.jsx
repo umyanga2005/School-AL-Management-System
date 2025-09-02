@@ -429,13 +429,13 @@ const ClassReport = () => {
         let studentsData = response.data?.students || [];
         let subjectsData = response.data?.subjects || [];
         
-        // Process marks to show "ab" for missing marks
+        // Process marks to show blank for missing marks
         studentsData.forEach(student => {
           student.marks = subjectsData.map(subject => {
             const existingMark = student.marks.find(m => m.subject_id === subject.id);
             return existingMark || {
               subject_id: subject.id,
-              marks: "", // absent
+              marks: "", // empty string for absent
               subject_name: subject.name
             };
           });

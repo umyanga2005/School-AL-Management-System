@@ -72,7 +72,7 @@ export const ReportPDF = {
     const drawTableHeader = (startY, isGradeTable = false) => {
       const tableWidth = pageWidth - (margin * 2);
       const fixedColWidth = 5;
-      const nameColWidth = 35;
+      const nameColWidth = 45;
       const totalColWidth = 10;
       const avgColWidth = 10;
       const rankColWidth = 6;
@@ -80,7 +80,7 @@ export const ReportPDF = {
 
       const subjectCols = subjects.length;
       const remainingWidth = tableWidth - fixedColWidth - nameColWidth - (isGradeTable ? 0 : (totalColWidth + avgColWidth + rankColWidth + percentageColWidth));
-      const subjectColWidth = Math.max(8, remainingWidth / subjectCols);
+      const subjectColWidth = Math.max(6, remainingWidth / subjectCols);
 
       const headerHeight = 30;
       let y = startY;
@@ -183,13 +183,17 @@ export const ReportPDF = {
         x += fixedColWidth;
 
         doc.line(x, y, x, y + rowHeight);
-        const studentName = student.name.length > 25 ? student.name.substring(0, 23) + '..' : student.name;
+        const studentName = student.name;
         doc.text(studentName, x + nameColWidth/2, y + 4, { align: 'center' });
         x += nameColWidth;
 
         subjects.forEach(subject => {
           const subjectMark = student.marks.find(m => m.subject_id === subject.id);
-          const markText = subjectMark ? String(subjectMark.marks) : '';
+          // Handle null/undefined marks and empty strings
+          let markText = '';
+          if (subjectMark && subjectMark.marks !== null && subjectMark.marks !== undefined && subjectMark.marks !== '') {
+            markText = String(subjectMark.marks);
+          }
           doc.text(markText, x + subjectColWidth/2, y + 4, { align: 'center' });
           doc.line(x, y, x, y + rowHeight);
           x += subjectColWidth;
