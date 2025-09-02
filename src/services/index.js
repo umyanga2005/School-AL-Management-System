@@ -6,6 +6,7 @@ import { termApi } from './termApi';
 import { marksApi } from './marksApi';
 import { reportApi } from './reportApi';
 import { savedReportsApi } from './savedReportsApi'; 
+import { dashboardApi } from './dashboardApi';
 
 // Create classApi if it doesn't exist
 const classApi = {
@@ -48,5 +49,6 @@ export {
   marksApi,
   classApi,
   reportApi,
-  savedReportsApi
+  savedReportsApi,
+  dashboardApi
 };

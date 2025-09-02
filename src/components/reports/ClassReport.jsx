@@ -115,7 +115,6 @@ const ClassReport = () => {
     }
   }, []);
 
-
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
@@ -339,6 +338,61 @@ const ClassReport = () => {
     return rankedStudents;
   };
 
+  // Function to handle blank mark sheet download
+  const handleExportBlankMarksheet = () => {
+    if (!filters.termId) {
+      setError("Please select a term first.");
+      return;
+    }
+    
+    if (filters.reportType === 'class' && !filters.className) {
+      setError("Please select a class for the blank mark sheet.");
+      return;
+    }
+
+    // Check if we have student data
+    const hasStudentData = filteredReportData.length > 0 || reportData.length > 0;
+    
+    if (!hasStudentData) {
+      setError("No student data available. Please generate a report first.");
+      return;
+    }
+
+    // Create blank data structure with all students but no marks
+    const blankData = filteredReportData.length > 0 
+      ? filteredReportData 
+      : reportData;
+    
+    // Create blank mark sheet data
+    const blankMarksheetData = blankData.map(student => {
+      const blankStudent = { ...student };
+      blankStudent.marks = subjects.map(subject => ({
+        subject_id: subject.id,
+        marks: "", // Mark as absent
+        subject_name: subject.name
+      }));
+      blankStudent.totalMarks = 0;
+      blankStudent.rank = 0;
+      return blankStudent;
+    });
+
+    // Generate PDF with blank data
+    ReportPDF.generatePDF({
+      students: blankMarksheetData,
+      subjects,
+      summary: {
+        totalStudents: blankMarksheetData.length,
+        totalSubjects: subjects.length,
+        classAverage: 0,
+        highestScore: 0,
+        lowestScore: 0
+      },
+      currentTerm,
+      filters,
+      className: filters.className
+    });
+  };
+
   const handleGenerateReport = async () => {
     if (!filters.termId) {
       setError("Please select a term.");
@@ -361,7 +415,8 @@ const ClassReport = () => {
     try {
       const reportFilters = { 
         term_id: filters.termId,
-        include_common: filters.includeCommon
+        include_common: filters.includeCommon,
+        include_all_students: true // Ensure all students are returned
       };
       
       if (filters.reportType === 'class') {
@@ -373,6 +428,18 @@ const ClassReport = () => {
       if (response.success) {
         let studentsData = response.data?.students || [];
         let subjectsData = response.data?.subjects || [];
+        
+        // Process marks to show "ab" for missing marks
+        studentsData.forEach(student => {
+          student.marks = subjectsData.map(subject => {
+            const existingMark = student.marks.find(m => m.subject_id === subject.id);
+            return existingMark || {
+              subject_id: subject.id,
+              marks: "", // absent
+              subject_name: subject.name
+            };
+          });
+        });
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
@@ -683,14 +750,26 @@ const ClassReport = () => {
             />
           </div>
           
-          {/* Generate Button */}
-          <button 
-            onClick={handleGenerateReport} 
-            disabled={loading} 
-            className="bg-blue-600 text-white px-6 py-2 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
-          >
-            {loading ? 'Generating...' : 'Generate Report'}
-          </button>
+          {/* Action Buttons */}
+          <div className="flex space-x-2">
+            {/* Blank Mark Sheet Button */}
+            <button 
+              onClick={handleExportBlankMarksheet} 
+              disabled={loading || !filters.termId || (filters.reportType === 'class' && !filters.className)}
+              className="bg-gray-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:bg-gray-300"
+            >
+              Download Blank Mark Sheet
+            </button>
+            
+            {/* Generate Button */}
+            <button 
+              onClick={handleGenerateReport} 
+              disabled={loading} 
+              className="bg-blue-600 text-white px-6 py-2 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
+            >
+              {loading ? 'Generating...' : 'Generate Report'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -717,12 +796,6 @@ const ClassReport = () => {
               </p>
             </div>
             <div className="flex space-x-2 flex-wrap gap-2">
-              {/* --- <button 
-                onClick={handleExportCSV} 
-                className="bg-green-600 text-white px-4 py-2 text-sm rounded-md hover:bg-green-700"
-              >
-                Export CSV Button 
-              </button> --- */}
               <button 
                 onClick={handleExportExcel} 
                 className="bg-blue-600 text-white px-4 py-2 text-sm rounded-md hover:bg-blue-700"
@@ -734,12 +807,6 @@ const ClassReport = () => {
                 className="bg-red-600 text-white px-4 py-2 text-sm rounded-md hover:bg-red-700"
               >
                 Export PDF
-              </button>
-              <button 
-                onClick={handleSaveReport} 
-                className="bg-yellow-600 text-white px-4 py-2 text-sm rounded-md hover:bg-yellow-700"
-              >
-                Save Report
               </button>
             </div>
           </div>

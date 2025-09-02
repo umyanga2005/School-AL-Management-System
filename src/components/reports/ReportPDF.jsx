@@ -38,7 +38,6 @@ export const ReportPDF = {
       
       const gradeCounts = {};
       
-      // Initialize grade counts for each subject
       subjects.forEach(subject => {
         gradeCounts[subject.id] = {
           subjectName: subject.name,
@@ -52,7 +51,6 @@ export const ReportPDF = {
         };
       });
       
-      // Count grades for each subject
       students.forEach(student => {
         student.marks.forEach(mark => {
           const subject = subjects.find(s => s.id === mark.subject_id);
@@ -73,15 +71,15 @@ export const ReportPDF = {
     // ----- TABLE HEADER -----
     const drawTableHeader = (startY, isGradeTable = false) => {
       const tableWidth = pageWidth - (margin * 2);
-      const fixedColWidth = 15;
-      const nameColWidth = 45;
-      const totalColWidth = 12;
-      const avgColWidth = 12;
-      const rankColWidth = 12;
-      const percentageColWidth = 20;
+      const fixedColWidth = 5;
+      const nameColWidth = 35;
+      const totalColWidth = 10;
+      const avgColWidth = 10;
+      const rankColWidth = 6;
+      const percentageColWidth = 8;
 
-      const subjectCols = isGradeTable ? subjects.length : subjects.length;
-      const remainingWidth = tableWidth - fixedColWidth - nameColWidth - totalColWidth - avgColWidth - rankColWidth - percentageColWidth;
+      const subjectCols = subjects.length;
+      const remainingWidth = tableWidth - fixedColWidth - nameColWidth - (isGradeTable ? 0 : (totalColWidth + avgColWidth + rankColWidth + percentageColWidth));
       const subjectColWidth = Math.max(8, remainingWidth / subjectCols);
 
       const headerHeight = 30;
@@ -98,9 +96,8 @@ export const ReportPDF = {
       doc.setTextColor(0, 0, 0);
 
       if (isGradeTable) {
-        // For grade table, combine the No and Name columns into one "Grade" column
         const gradeColWidth = fixedColWidth + nameColWidth;
-        doc.text('Grade', x + gradeColWidth/2, y + 10, { align: 'center' });
+        doc.text('Grade', x + gradeColWidth / 2, y + 10, { align: 'center' });
         x += gradeColWidth;
         doc.line(x, y, x, y + headerHeight);
       } else {
@@ -112,37 +109,31 @@ export const ReportPDF = {
         x += nameColWidth;
       }
 
-      // Subjects (rotated)
       subjects.forEach(subject => {
         doc.saveGraphicsState();
         doc.text(subject.name, x + 5, y + 28, { angle: 90 });
         doc.restoreGraphicsState();
         doc.line(x, y, x, y + headerHeight);
-        x += subjectColWidth ;
+        x += subjectColWidth;
       });
 
       if (!isGradeTable) {
-        doc.text('Total', x + totalColWidth/2, y + 16, { align: 'center' });
+        doc.text('Total', x + 6, y + 28, { angle: 90});
         doc.line(x, y, x, y + headerHeight);
         x += totalColWidth;
 
-        doc.text('Avg', x + avgColWidth/2, y + 16, { align: 'center' });
+        doc.text('Avg', x + 6, y + 28, { angle: 90});
         doc.line(x, y, x, y + headerHeight);
         x += avgColWidth;
 
-        doc.text('Rank', x + rankColWidth/2, y + 16, { align: 'center' });
+        doc.text('Rank', x + 4, y + 28, { angle: 90});
         doc.line(x, y, x, y + headerHeight);
         x += rankColWidth;
 
-        // For Full Term Report, show Z-Score instead of Percentage
         if (filters.reportType === 'term') {
-          doc.saveGraphicsState();
-          doc.text('Z-Score', x + 10, y + 20, { angle: 90 });
-          doc.restoreGraphicsState();
+          doc.text('Z-Score', x + 5, y + 28, { angle: 90 });
         } else {
-          doc.saveGraphicsState();
-          doc.text('Percentage', x + 10, y + 20, { angle: 90 });
-          doc.restoreGraphicsState();
+          doc.text('Percentage', x + 5, y + 28, { angle: 90 });
         }
         doc.line(x, y, x, y + headerHeight);
       }
@@ -151,12 +142,7 @@ export const ReportPDF = {
         y: y + headerHeight, 
         subjectColWidth, 
         fixedColWidth, 
-        nameColWidth, 
-        totalColWidth, 
-        avgColWidth, 
-        rankColWidth, 
-        percentageColWidth,
-        isGradeTable
+        nameColWidth 
       };
     };
 
@@ -165,7 +151,12 @@ export const ReportPDF = {
       const tableWidth = pageWidth - (margin * 2);
       const rowHeight = 5;
 
-      let { y, subjectColWidth, fixedColWidth, nameColWidth, totalColWidth, avgColWidth, rankColWidth, percentageColWidth } = drawTableHeader(startY);
+      let { y, subjectColWidth, fixedColWidth, nameColWidth } = drawTableHeader(startY);
+
+      const totalColWidth = 10;
+      const avgColWidth = 10;
+      const rankColWidth = 6;
+      const percentageColWidth = 8;
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
@@ -174,8 +165,7 @@ export const ReportPDF = {
         if (y + rowHeight > pageHeight - margin - 15) {
           doc.addPage();
           currentY = margin;
-          addHeader();
-          ({ y, subjectColWidth, fixedColWidth, nameColWidth, totalColWidth, avgColWidth, rankColWidth, percentageColWidth } = drawTableHeader(currentY));
+          ({ y, subjectColWidth, fixedColWidth, nameColWidth } = drawTableHeader(currentY));
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(7);
         }
@@ -223,12 +213,10 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += rankColWidth;
 
-        // For Full Term Report, show Z-Score instead of Percentage
         if (filters.reportType === 'term') {
           const zScore = student.zScore ? student.zScore.toFixed(2) : '0.00';
           doc.text(zScore, x + percentageColWidth/2, y + 4, { align: 'center' });
         } else {
-          // For Class Report, show percentage (empty as per original)
           doc.text('', x + percentageColWidth/2, y + 4, { align: 'center' });
         }
         doc.line(x, y, x, y + rowHeight);
@@ -249,27 +237,21 @@ export const ReportPDF = {
         'B > 65 - 74',
         'A > 75 - 100'
       ];
-      
-      const tableWidth = pageWidth - (margin * 6.9);
-      const fixedColWidth = 15;
-      const nameColWidth = 45;
-      const subjectCols = subjects.length;
-      const remainingWidth = tableWidth - fixedColWidth - nameColWidth;
-      const subjectColWidth = Math.max(8, remainingWidth / subjectCols);
-      
+
+      const tableWidth = pageWidth - (margin * 2);
+      const { subjectColWidth, fixedColWidth, nameColWidth } = drawTableHeader(startY, true);
+      const gradeColWidth = fixedColWidth + nameColWidth;
       const rowHeight = 5;
-      let y = startY;
+      let y = startY + 30; // push below header
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
 
-      // Grade rows
       gradeRanges.forEach((gradeRange, index) => {
         if (y + rowHeight > pageHeight - margin - 15) {
           doc.addPage();
-          y = margin;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7);
+          ({ subjectColWidth } = drawTableHeader(margin, true));
+          y = margin + 30;
         }
 
         if (index % 2 === 0) {
@@ -281,14 +263,10 @@ export const ReportPDF = {
         doc.rect(margin, y, tableWidth, rowHeight);
 
         let x = margin;
-        
-        // Grade column (combines No + Name column width)
-        const gradeColWidth = fixedColWidth + nameColWidth;
         doc.text(gradeRange, x + gradeColWidth/2, y + 4, { align: 'center' });
         x += gradeColWidth;
         doc.line(x, y, x, y + rowHeight);
 
-        // Subject counts
         subjects.forEach(subject => {
           const count = gradeCounts[subject.id].grades[gradeRange] || 0;
           doc.text(count.toString(), x + subjectColWidth/2, y + 4, { align: 'center' });
@@ -298,49 +276,39 @@ export const ReportPDF = {
 
         y += rowHeight;
       });
-      
+
       // Total row
       if (y + rowHeight > pageHeight - margin - 15) {
         doc.addPage();
-        y = margin;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
+        ({ subjectColWidth } = drawTableHeader(margin, true));
+        y = margin + 30;
       }
-      
+
       doc.setFillColor(220, 220, 220);
       doc.rect(margin, y, tableWidth, rowHeight, 'F');
       doc.setDrawColor(0, 0, 0);
       doc.rect(margin, y, tableWidth, rowHeight);
-      
+
       let x = margin;
-      
-      // Grade column (combines No + Name column width)
-      const gradeColWidth = fixedColWidth + nameColWidth;
       doc.setFont('helvetica', 'bold');
-      doc.text('Total', x + gradeColWidth/2, y + 4, { align: 'center' });
+      doc.text('Total', x + gradeColWidth / 2, y + 4, { align: 'center' });
       x += gradeColWidth;
       doc.line(x, y, x, y + rowHeight);
-      
-      // Subject totals
+
       subjects.forEach(subject => {
         const total = Object.values(gradeCounts[subject.id].grades).reduce((sum, count) => sum + count, 0);
-        doc.text(total.toString(), x + subjectColWidth/2, y + 4, { align: 'center' });
+        doc.text(total.toString(), x + subjectColWidth / 2, y + 4, { align: 'center' });
         doc.line(x, y, x, y + rowHeight);
         x += subjectColWidth;
       });
-      
+
       return y + rowHeight + 5;
     };
 
     // ---- GENERATE ----
     addHeader();
     currentY = drawMarkTable(students, currentY);
-    
-    // Add space between tables - THIS IS THE KEY CHANGE
-    const spaceBetweenTables = 10; // 10mm space between tables
-    currentY += spaceBetweenTables;
-    
-    // Add grade count table
+    currentY += 10;
     currentY = drawGradeCountTable(currentY);
 
     // ---- FOOTER ----

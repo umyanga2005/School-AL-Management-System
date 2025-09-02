@@ -56,26 +56,26 @@ router.get('/term-report', requireAuth, async (req, res) => {
     
     const term = termResult.rows[0];
 
-    // Build the main query to get all marks data
+    // backend/routes/reports.js - UPDATED SQL QUERY
     let sql = `
       SELECT 
         st.id as student_id,
         st.index_number,
-        st.name as student_name,
+        st.name_with_initials as student_name,
         st.current_class,
         s.id as subject_id,
         s.subject_code,
         s.subject_name,
         s.stream,
-        m.marks,
+        COALESCE(m.marks, NULL) as marks,
         m.entry_date,
         u.username as teacher_username,
         u.full_name as teacher_name
       FROM students st
-      JOIN marks m ON st.id = m.student_id
-      JOIN subjects s ON m.subject_id = s.id
+      CROSS JOIN subjects s
+      LEFT JOIN marks m ON st.id = m.student_id AND m.subject_id = s.id AND m.term_id = $1
       LEFT JOIN users u ON m.teacher_id = u.id
-      WHERE m.term_id = $1 AND st.status = 'active' AND s.status = 'active'
+      WHERE st.status = 'active' AND s.status = 'active'
     `;
 
     const params = [term_id];
@@ -87,12 +87,12 @@ router.get('/term-report', requireAuth, async (req, res) => {
       params.push(class_name);
       paramIndex++;
     }
-    
+
     // Filter out common subjects if requested
     if (include_common === 'false') {
       sql += ` AND s.stream != 'Common'`;
     }
-    
+
     sql += ` ORDER BY st.current_class, st.index_number, s.stream, s.subject_name`;
 
     const result = await db.execute(sql, params);
@@ -120,8 +120,8 @@ router.get('/term-report', requireAuth, async (req, res) => {
     let highestScore = 0;
     let lowestScore = 100;
 
+    // First, collect all subjects
     result.rows.forEach(row => {
-      // Track subjects
       if (!subjectsData[row.subject_id]) {
         subjectsData[row.subject_id] = {
           id: row.subject_id,
@@ -133,8 +133,11 @@ router.get('/term-report', requireAuth, async (req, res) => {
           average: 0
         };
       }
+    });
 
-      // Track students
+    // Then process students and their marks
+    result.rows.forEach(row => {
+      // Track students (only once per student)
       if (!studentsData[row.student_id]) {
         studentsData[row.student_id] = {
           id: row.student_id,
@@ -149,8 +152,9 @@ router.get('/term-report', requireAuth, async (req, res) => {
         classTotalStudents++;
       }
 
-      // Add the mark to the student's mark list
-      const markValue = parseFloat(row.marks);
+      // Add the mark to the student's mark list (even if null/absent)
+      const markValue = row.marks !== null ? parseFloat(row.marks) : null;
+      
       studentsData[row.student_id].marks.push({
         subject_id: row.subject_id,
         subject_code: row.subject_code,
@@ -158,16 +162,19 @@ router.get('/term-report', requireAuth, async (req, res) => {
         stream: row.stream,
         marks: markValue,
         teacher: row.teacher_name || row.teacher_username,
-        entry_date: row.entry_date
+        entry_date: row.entry_date,
+        is_absent: markValue === null
       });
 
-      // Update subject statistics
-      subjectsData[row.subject_id].totalMarks += markValue;
-      subjectsData[row.subject_id].studentCount++;
+      // Update subject statistics only if mark exists
+      if (markValue !== null) {
+        subjectsData[row.subject_id].totalMarks += markValue;
+        subjectsData[row.subject_id].studentCount++;
 
-      // Update highest/lowest scores
-      if (markValue > highestScore) highestScore = markValue;
-      if (markValue < lowestScore) lowestScore = markValue;
+        // Update highest/lowest scores
+        if (markValue > highestScore) highestScore = markValue;
+        if (markValue < lowestScore) lowestScore = markValue;
+      }
     });
 
     // Calculate student totals and averages
@@ -282,6 +289,34 @@ router.get('/subject-analysis', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error generating subject analysis:', error);
     res.status(500).json({ success: false, error: 'Failed to generate subject analysis' });
+  }
+});
+
+// GET /api/reports/database-size - Get database size
+router.get('/database-size', requireAuth, async (req, res) => {
+  try {
+    // Execute the SQL query to get database size
+    const result = await db.execute(
+      'SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size'
+    );
+    
+    if (result.rows.length > 0) {
+      res.json({ 
+        success: true, 
+        db_size: result.rows[0].db_size 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to retrieve database size' 
+      });
+    }
+  } catch (error) {
+    console.error('Error getting database size:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to retrieve database size' 
+    });
   }
 });
 
