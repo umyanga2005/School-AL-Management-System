@@ -182,13 +182,13 @@ router.get('/term-report', requireAuth, async (req, res) => {
     
     processedStudents.forEach(student => {
       // Calculate total marks (all subjects)
-      student.totalMarks = student.marks.reduce((sum, m) => sum + m.marks, 0);
+      student.totalMarks = student.marks.reduce((sum, m) => sum + (m.marks !== null ? m.marks : 0), 0);
       
-      // Calculate average (only non-common subjects)
-      const nonCommonSubjects = student.marks.filter(m => m.stream !== 'Common');
-      if (nonCommonSubjects.length > 0) {
-        const totalNonCommon = nonCommonSubjects.reduce((sum, m) => sum + m.marks, 0);
-        student.average = parseFloat((totalNonCommon / nonCommonSubjects.length).toFixed(2));
+      // Calculate average (only non-common subjects with actual marks)
+      const nonCommonSubjectsWithMarks = student.marks.filter(m => m.stream !== 'Common' && m.marks !== null);
+      if (nonCommonSubjectsWithMarks.length > 0) {
+        const totalNonCommon = nonCommonSubjectsWithMarks.reduce((sum, m) => sum + m.marks, 0);
+        student.average = parseFloat((totalNonCommon / nonCommonSubjectsWithMarks.length).toFixed(2));
       } else {
         student.average = 0;
       }

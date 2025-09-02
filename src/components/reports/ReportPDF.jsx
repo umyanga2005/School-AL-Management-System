@@ -1,4 +1,4 @@
-// src/components/reports/ReportPDF.jsx
+// src/components/reports/ReportPDF.jsx - UPDATED VERSION
 import jsPDF from 'jspdf';
 
 export const ReportPDF = {
@@ -53,12 +53,15 @@ export const ReportPDF = {
       
       students.forEach(student => {
         student.marks.forEach(mark => {
-          const subject = subjects.find(s => s.id === mark.subject_id);
-          if (subject) {
-            for (const range of gradeRanges) {
-              if (mark.marks >= range.min && mark.marks <= range.max) {
-                gradeCounts[subject.id].grades[range.name]++;
-                break;
+          // Only count if marks are not null/undefined/empty string
+          if (mark.marks !== null && mark.marks !== undefined && mark.marks !== '') {
+            const subject = subjects.find(s => s.id === mark.subject_id);
+            if (subject) {
+              for (const range of gradeRanges) {
+                if (mark.marks >= range.min && mark.marks <= range.max) {
+                  gradeCounts[subject.id].grades[range.name]++;
+                  break;
+                }
               }
             }
           }
@@ -203,9 +206,12 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += totalColWidth;
 
-        const nonCommonMarks = student.marks.filter(m =>
-          subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
-        );
+        // Calculate average for non-common subjects with valid marks
+        const nonCommonMarks = student.marks.filter(m => {
+          const subject = subjects.find(s => s.id === m.subject_id);
+          return subject && subject.stream !== 'Common' && m.marks !== null && m.marks !== undefined && m.marks !== '';
+        });
+        
         const average = nonCommonMarks.length > 0
           ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length)
           : 0;

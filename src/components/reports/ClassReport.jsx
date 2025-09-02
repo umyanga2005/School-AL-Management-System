@@ -255,37 +255,38 @@ const ClassReport = () => {
     setStudentSearch(e.target.value);
   };
 
-  // Calculate Z-Score for a student
+  // Calculate Z-Score for a student based on per-subject Z-scores
   const calculateZScore = (student, allStudents, subjects) => {
     const nonCommonSubjects = subjects.filter(subject => subject.stream !== 'Common');
     
     if (nonCommonSubjects.length === 0) return 0;
-    
-    const studentNonCommonMarks = student.marks.filter(mark => 
-      nonCommonSubjects.some(subject => subject.id === mark.subject_id)
-    );
-    
-    if (studentNonCommonMarks.length === 0) return 0;
-    
-    const studentAvg = studentNonCommonMarks.reduce((sum, mark) => sum + mark.marks, 0) / studentNonCommonMarks.length;
-    
-    const allAverages = allStudents.map(s => {
-      const sNonCommonMarks = s.marks.filter(mark => 
-        nonCommonSubjects.some(subject => subject.id === mark.subject_id)
-      );
-      return sNonCommonMarks.length > 0 
-        ? sNonCommonMarks.reduce((sum, mark) => sum + mark.marks, 0) / sNonCommonMarks.length 
-        : 0;
+
+    let totalZScore = 0;
+    let subjectsWithMarksCount = 0;
+
+    nonCommonSubjects.forEach(subject => {
+      const studentMark = student.marks.find(m => m.subject_id === subject.id && m.marks !== null);
+      
+      if (studentMark) {
+        const allStudentsMarksForSubject = allStudents
+          .map(s => s.marks.find(m => m.subject_id === subject.id && m.marks !== null)?.marks)
+          .filter(mark => mark !== undefined);
+
+        if (allStudentsMarksForSubject.length > 1) { // Need at least 2 data points for std dev
+          const mean = allStudentsMarksForSubject.reduce((sum, mark) => sum + mark, 0) / allStudentsMarksForSubject.length;
+          const squaredDiffs = allStudentsMarksForSubject.map(mark => Math.pow(mark - mean, 2));
+          const variance = squaredDiffs.reduce((sum, diff) => sum + diff, 0) / allStudentsMarksForSubject.length;
+          const stdDev = Math.sqrt(variance);
+
+          if (stdDev !== 0) {
+            totalZScore += (studentMark.marks - mean) / stdDev;
+            subjectsWithMarksCount++;
+          }
+        }
+      }
     });
-    
-    const mean = allAverages.reduce((sum, avg) => sum + avg, 0) / allAverages.length;
-    const squaredDiffs = allAverages.map(avg => Math.pow(avg - mean, 2));
-    const variance = squaredDiffs.reduce((sum, diff) => sum + diff, 0) / allAverages.length;
-    const stdDev = Math.sqrt(variance);
-    
-    if (stdDev === 0) return 0;
-    
-    return (studentAvg - mean) / stdDev;
+
+    return subjectsWithMarksCount > 0 ? totalZScore / subjectsWithMarksCount : 0;
   };
 
   // Apply ranking based on selected method
@@ -296,8 +297,8 @@ const ClassReport = () => {
       rankedStudents.sort((a, b) => b.totalMarks - a.totalMarks);
     } else if (rankingMethod === 'average') {
       rankedStudents.sort((a, b) => {
-        const aNonCommon = a.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common');
-        const bNonCommon = b.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common');
+        const aNonCommon = a.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null);
+        const bNonCommon = b.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null);
         
         const aAvg = aNonCommon.length > 0 ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / aNonCommon.length : 0;
         const bAvg = bNonCommon.length > 0 ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length : 0;
@@ -321,7 +322,7 @@ const ClassReport = () => {
       if (rankingMethod === 'totalMarks') {
         currentValue = student.totalMarks;
       } else if (rankingMethod === 'average') {
-        const nonCommon = student.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common');
+        const nonCommon = student.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null);
         currentValue = nonCommon.length > 0 ? nonCommon.reduce((sum, m) => sum + m.marks, 0) / nonCommon.length : 0;
       } else {
         currentValue = student.zScore;
@@ -492,7 +493,7 @@ const ClassReport = () => {
       
       // Always include average column
       const nonCommonMarks = student.marks.filter(m => 
-        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null
       );
       studentRow['Average'] = nonCommonMarks.length > 0 
         ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length)
@@ -537,7 +538,7 @@ const ClassReport = () => {
       
       // Always include average
       const nonCommonMarks = student.marks.filter(m => 
-        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null
       );
       studentRow.Average = nonCommonMarks.length > 0 
         ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
@@ -920,7 +921,7 @@ const ClassReport = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
                       {(() => {
                         const nonCommonMarks = student.marks.filter(m => 
-                          subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+                          subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null
                         );
                         return nonCommonMarks.length > 0 
                           ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
