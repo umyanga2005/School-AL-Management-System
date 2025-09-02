@@ -55,7 +55,7 @@ const LoginForm = ({ onLoginSuccess, loading, setLoading }) => {
         <div className="login-header">
           <div className="login-icon">
             <img 
-              src={APP_CONFIG.schoolLogo} 
+              src="logo.png" 
               width="75px" 
               height="75px"
               alt="School Logo"
