@@ -193,11 +193,17 @@ const Dashboard = ({ currentUser = { name: 'John Doe', role: 'admin' } }) => {
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [selectedGrade]); // Add selectedGrade as a dependency to re-fetch performance data when it changes
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
+      // Set system status to 'checking' at the start of data loading
+      setSystemStatus({
+        api: 'checking',
+        database: 'checking',
+        storage: 'checking'
+      });
       
       // Load all dashboard data using the new dashboardApi
       const [
@@ -209,7 +215,7 @@ const Dashboard = ({ currentUser = { name: 'John Doe', role: 'admin' } }) => {
         dashboardApi.getDashboardStats(),
         dashboardApi.getPerformanceData(selectedGrade),
         dashboardApi.getTopSubjectsData(),
-        dashboardApi.checkSystemStatus()
+        dashboardApi.checkSystemStatus() // This will now be awaited properly
       ]);
 
       // Process stats data
@@ -227,13 +233,26 @@ const Dashboard = ({ currentUser = { name: 'John Doe', role: 'admin' } }) => {
         setTopSubjectsData(topSubjectsResponse.value.data);
       }
 
-      // Process system status
+      // Process system status - this is the key part
       if (systemStatusResponse.status === 'fulfilled' && systemStatusResponse.value.success) {
         setSystemStatus(systemStatusResponse.value.data);
+      } else {
+        // If system status check fails, explicitly set to offline/inactive
+        setSystemStatus({
+          api: 'offline',
+          database: 'inactive',
+          storage: 0 // Or a default value
+        });
       }
       
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Ensure system status is set to offline if there's a general error
+      setSystemStatus({
+        api: 'offline',
+        database: 'inactive',
+        storage: 0
+      });
     } finally {
       setLoading(false);
     }

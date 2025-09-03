@@ -146,13 +146,7 @@ const SystemStatus = () => {
             {restarting ? '⟳' : '↻'}
           </button>
         </div>
-        
-        <div className="status-details">
-          <div className="detail-item">
-            <span className="detail-label">Last Check:</span>
-            <span className="detail-value">{formatLastChecked()}</span>
-          </div>
-        </div>
+
         
         <div className="status-actions">
           <button 
