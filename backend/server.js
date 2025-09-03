@@ -43,13 +43,96 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/saved-reports', savedReportsRoutes);
 
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Attendance Management System API is running',
+// Enhanced health check route
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test database connection
+    const dbStatus = await db.testConnection();
+    
+    const healthInfo = {
+      status: 'OK',
+      message: 'Attendance Management System API is running',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: process.env.npm_package_version || '1.0.0',
+      uptime: Math.floor(process.uptime()),
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+      },
+      database: {
+        connected: dbStatus.connected,
+        timestamp: dbStatus.timestamp || null,
+        version: dbStatus.version ? dbStatus.version.split(' ')[0] : null,
+        error: dbStatus.error || null
+      }
+    };
+
+    // If database is not connected, return 503
+    if (!dbStatus.connected) {
+      return res.status(503).json({
+        ...healthInfo,
+        status: 'DEGRADED',
+        message: 'API is running but database connection failed'
+      });
+    }
+
+    res.json(healthInfo);
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(503).json({
+      status: 'ERROR',
+      message: 'Health check failed',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
+});
+
+// System restart endpoint (for development and controlled environments)
+app.post('/api/system/restart', (req, res) => {
+  console.log('🔄 System restart requested');
+  
+  // Return immediate response
+  res.json({
+    success: true,
+    message: 'System restart initiated',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    pid: process.pid
+  });
+
+  // For development (local environment)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Restarting development server...');
+    
+    // Graceful shutdown with delay for response to be sent
+    setTimeout(() => {
+      console.log('👋 Shutting down for restart...');
+      process.exit(0); // PM2 or nodemon will restart automatically
+    }, 1000);
+  } else {
+    // For production (PM2 managed)
+    console.log('🔄 Requesting PM2 restart...');
+    
+    setTimeout(() => {
+      // Send signal to PM2 to restart this process
+      process.kill(process.pid, 'SIGINT');
+    }, 1000);
+  }
+});
+
+// System info endpoint (additional debugging info)
+app.get('/api/system/info', (req, res) => {
+  res.json({
+    node_version: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    pid: process.pid,
+    uptime: Math.floor(process.uptime()),
+    memory_usage: process.memoryUsage(),
+    cpu_usage: process.cpuUsage(),
+    env: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -75,6 +158,8 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📊 API Health Check: http://localhost:${PORT}/api/health`);
+      console.log(`🔄 System Restart: http://localhost:${PORT}/api/system/restart`);
+      console.log(`ℹ️  System Info: http://localhost:${PORT}/api/system/info`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('✅ Database initialized successfully');
     });
@@ -83,6 +168,17 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('👋 SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('👋 SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
 
 startServer();
 

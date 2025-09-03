@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import apiService from '../../services/api';
 import { APP_CONFIG } from '../../utils';
+import SystemStatus from '../common/SystemStatus';
 
 const LoginForm = ({ onLoginSuccess, loading, setLoading }) => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
@@ -51,6 +52,9 @@ const LoginForm = ({ onLoginSuccess, loading, setLoading }) => {
 
   return (
     <div className="login-container">
+      {/* System Status Component - positioned fixed in top right */}
+      <SystemStatus />
+      
       <div className="login-card">
         <div className="login-header">
           <div className="login-icon">

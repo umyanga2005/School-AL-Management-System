@@ -1,4 +1,4 @@
-// src/services/api.js - FIXED BULK MARKS ENDPOINT
+// src/services/api.js - FIXED BULK MARKS ENDPOINT + HEALTH CHECK ENDPOINTS
 class ApiService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
@@ -9,6 +9,11 @@ class ApiService {
         verify: `${this.baseURL}/auth/verify`,
         changePassword: `${this.baseURL}/auth/change-password`,
         register: `${this.baseURL}/auth/register`
+      },
+      system: {
+        health: `${this.baseURL}/health`,
+        restart: `${this.baseURL}/system/restart`,
+        info: `${this.baseURL}/system/info`
       },
       users: `${this.baseURL}/users`,
       attendance: `${this.baseURL}/attendance`,
@@ -82,6 +87,25 @@ class ApiService {
         status: error.status || 0
       };
     }
+  }
+
+  // System health and management methods
+  async checkHealth() {
+    return this.request(this.endpoints.system.health, {
+      method: 'GET'
+    });
+  }
+
+  async restartSystem() {
+    return this.request(this.endpoints.system.restart, {
+      method: 'POST'
+    });
+  }
+
+  async getSystemInfo() {
+    return this.request(this.endpoints.system.info, {
+      method: 'GET'
+    });
   }
 
   // Auth methods
