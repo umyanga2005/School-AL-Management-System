@@ -152,18 +152,6 @@ const SystemStatus = () => {
             <span className="detail-label">Last Check:</span>
             <span className="detail-value">{formatLastChecked()}</span>
           </div>
-          
-          {status.serverInfo && (
-            <div className="detail-item">
-              <span className="detail-label">Environment:</span>
-              <span className="detail-value">{status.serverInfo.environment}</span>
-            </div>
-          )}
-          
-          <div className="detail-item">
-            <span className="detail-label">API:</span>
-            <span className="detail-value api-url">{getApiBaseUrl()}</span>
-          </div>
         </div>
         
         <div className="status-actions">
