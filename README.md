@@ -28,28 +28,29 @@ A modern, role-based Attendance Management System developed using React, Node.js
 ## 📸 Screenshot
 
 Login
-![LMS Login Screenshot](preview/Login.png)
+![LMS Login Screenshot](Preview/Login.png)
 
 Dashboard
-![LMS Dashboard Screenshot](preview/Dashboard.png)
+![LMS Dashboard Screenshot](Preview/Dashboard.png)
 
 Admin Attendece
-![LMS admin Attendece Screenshot](preview/admin Attendece.png)
+![LMS admin Attendece Screenshot](Preview/admin Attendece.png)
 
 Student Management
-![LMS Student-Management Screenshot](preview/Student-Management.png)
+![LMS Student-Management Screenshot](Preview/Student-Management.png)
 
 Subject Management
-![LMS Subject Management Screenshot](preview/Subject-Management.png)
+![LMS Subject Management Screenshot](Preview/Subject-Management.png)
 
 Term Management
-![LMS Term-Management Screenshot](preview/Term-Management.png)
+![LMS Term-Management Screenshot](Preview/Term-Management.png)
 
 Marks Management
-![LMS Marks Management Screenshot](preview/Marks-Management.png)
+![LMS Marks Management Screenshot](Preview/Marks-Management.png)
 
-Report Section
-![LMS Report Section Screenshot](preview/Report-Section.png)
+Report Management
+![LMS Marks Management Screenshot](Preview/Report-Section.png)
+
 ---
 
 ## 📦 Installation & Setup
@@ -137,16 +138,6 @@ The application should now be running on `http://localhost:3000`.
 ## 📄 Database Schema
 
 The database schema includes tables for users, attendance records, and roles. See the `Tables schem.txt` file for full details.
-
----
-
-## 📸 Screenshots
-
-![Dashboard](https://via.placeholder.com/800x400.png?text=Dashboard)  
-*Dashboard View*
-
-![Attendance Page](https://via.placeholder.com/800x400.png?text=Attendance+Page)  
-*Attendance Management*
 
 ---
 
