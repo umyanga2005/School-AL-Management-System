@@ -1,236 +1,158 @@
-# SCC A/L Art Management System
+# 📘 School A/L Management System
 
-A modern, full-stack application to manage school-level Advanced Level (A/L) art administration — built with React (frontend) and Node.js/Express (backend).
+A modern, role-based Attendance Management System developed using React, Node.js, Express, and PostgreSQL. This system is tailored for the Sri Lanka School Certificate (SCC) Advanced Level (A/L) Art Section, enabling efficient management of daily student attendance records.
 
 ---
 
 ## 🚀 Features
 
-- Manage student, teacher, and class data relevant to A/L art management.
-- Authentication using JWT.
-- Secure and modular backend with support for Supabase (PostgreSQL).
-- Responsive frontend using React.
-- Configurable via environment variables.
+- **Role-Based Access**: Distinct roles for Teachers, Coordinators, and Admins to manage attendance and related tasks.
+- **Daily Attendance Tracking**: Facilitates the recording of student attendance on a daily basis.
+- **Responsive Design**: Ensures a seamless experience across various devices.
+- **Secure Authentication**: Implemented using JWT for secure user sessions.
+- **Real-Time Updates**: Utilizes WebSockets for live attendance updates.
 
 ---
 
-## 🛠 Tech Stack
+## 🛠️ Tech Stack
 
-**Frontend:**  
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
-
-**Backend:**  
-![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
-
-**Database:**  
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
-
-**Other Tools:**  
-![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=JSON%20web%20tokens&logoColor=white)
-![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)
-![Netlify](https://img.shields.io/badge/Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)
-![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
+- **Frontend**: React, Tailwind CSS
+- **Backend**: Node.js, Express
+- **Database**: PostgreSQL
+- **Authentication**: JWT (JSON Web Tokens)
+- **Password Encryption**: Node.js `crypto` module
+- **Real-Time Communication**: Socket.io
 
 ---
 
-## 📂 Directory Structure
+## 📸 Screenshot
 
-```
-/
-├── backend/           # Node.js/Express backend
-│   ├── src/
-│   ├── package.json
-│   └── ...
-├── src/ (frontend)    # React app
-│   ├── components/
-│   ├── pages/
-│   ├── App.js
-│   └── ...
-├── public/
-│   └── assets (e.g., logo.png)
-├── .gitignore
-├── package.json       # Monorepo root (if applicable)
-└── README.md
-```
+Login
+![LMS Login Screenshot](preview/Login.png)
 
-> Adjust the structure above if your actual project layout differs.
+Dashboard
+![LMS Dashboard Screenshot](preview/Dashboard.png)
 
+Admin Attendece
+![LMS admin Attendece Screenshot](preview/admin Attendece.png)
+
+Student Management
+![LMS Student-Management Screenshot](preview/Student-Management.png)
+
+Subject Management
+![LMS Subject Management Screenshot](preview/Subject-Management.png)
+
+Term Management
+![LMS Term-Management Screenshot](preview/Term-Management.png)
+
+Marks Management
+![LMS Marks Management Screenshot](preview/Marks-Management.png)
+
+Report Section
+![LMS Report Section Screenshot](preview/Report-Section.png)
 ---
 
-## 🛠 Getting Started
+## 📦 Installation & Setup
 
-### Prerequisites
-
-- Node.js (v14 or newer)
-- npm or Yarn
-- (Optional) Supabase PostgreSQL database
-
-### Clone the Repository
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/umyanga2005/School-AL-Management-System.git
 cd School-AL-Management-System
 ```
 
----
+### 2. Install Backend Dependencies
 
-## ⚙️ Backend Setup
+```bash
+cd backend
+npm install
+```
 
-1. Navigate to the backend directory:
+### 3. Set Up Environment Variables
 
-   ```bash
-   cd backend
-   ```
+Create a `.env` file in the `backend` directory and configure the following variables:
 
-2. Create a `.env` file with the following variables:
-
-   ```env
-   PORT=5000
-   NODE_ENV=development
-
-   DEV_URL=http://localhost:3000
-
-   JWT_SECRET=ADMINSA
-
-   # Supabase Database Configuration
-   DB_HOST=your_db_host
-   DB_PORT=your_db_port
-   DB_NAME=your_db_name
-   DB_USER=your_db_user
-   DB_PASSWORD=your_db_password
-   ```
-
-3. Install dependencies and start the server:
-
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-   The server should now run at `http://localhost:5000`.
+```
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=school_al_management
+JWT_SECRET=your_jwt_secret
+```
 
 ---
 
-## 🎨 Frontend Setup
+### ⚠️ Important: Database & User Setup
 
-1. Navigate to your frontend folder (assuming `src/` or root):
+Before starting the project:
 
-   ```bash
-   cd ../src
-   ```
+1. **Create the Database and Tables**  
+   Make sure your PostgreSQL database is created and all necessary tables (`users`, `attendance`, `roles`, etc.) exist. Refer to the `Tables schem.txt` file in the repository for details.
 
-2. Create a `.env` file with these variables:
+2. **Add Users Data**  
+   Add at least one user for each role (Teacher, Coordinator, Admin) into the `users` table **before logging in**.
 
-   ```env
-   # Backend API Configuration
-   REACT_APP_API_BASE_URL=http://localhost:5000/api
+3. **Password Encryption**  
+   Passwords must be stored encrypted using Node.js `crypto` module. Example:
 
-   # Application Configuration
-   REACT_APP_SCHOOL_NAME="SCC A/L Art Management System"
-   REACT_APP_SCHOOL_LOGO="/logo.png"
+```javascript
+const crypto = require('crypto');
 
-   # Debug Mode (set to false in production)
-   REACT_APP_DEBUG_MODE=true
-   ```
+function encryptPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
-3. Install dependencies and start the React development server:
+// Example usage
+const hashedPassword = encryptPassword('yourPasswordHere');
+```
 
-   ```bash
-   npm install
-   npm start
-   ```
+Insert the `hashedPassword` into the `password` field in the `users` table.
 
-   The frontend will launch on `http://localhost:3000`, fetching data from the backend.
+---
+
+### 4. Start the Backend Server
+
+```bash
+npm start
+```
+
+### 5. Install Frontend Dependencies
+
+```bash
+cd ../frontend
+npm install
+```
+
+### 6. Start the Frontend Server
+
+```bash
+npm start
+```
+
+The application should now be running on `http://localhost:3000`.
+
+---
+
+## 📄 Database Schema
+
+The database schema includes tables for users, attendance records, and roles. See the `Tables schem.txt` file for full details.
 
 ---
 
 ## 📸 Screenshots
 
-### Login Page
-![Login Page](public/screenshots/login.png)
+![Dashboard](https://via.placeholder.com/800x400.png?text=Dashboard)  
+*Dashboard View*
 
-### Dashboard
-![Dashboard](public/screenshots/dashboard.png)
-
-### Student Management
-![Student Management](public/screenshots/students.png)
-
-> Add actual screenshots to the `public/screenshots/` folder and update the paths above.
+![Attendance Page](https://via.placeholder.com/800x400.png?text=Attendance+Page)  
+*Attendance Management*
 
 ---
 
-## 📑 Usage
+## 📄 License
 
-1. Launch both backend and frontend as described above.
-2. Open `http://localhost:3000` in your browser.
-3. Interact with the system using the school name and logo you configured.
-4. Debug mode is enabled — great for development and testing.
+This project is licensed under the MIT License.
 
 ---
 
-## 🔧 Environment Variables Overview
-
-| **File**      | **Variable**             | **Purpose**                                    |
-|---------------|---------------------------|------------------------------------------------|
-| `backend/.env`| `PORT`                    | Port on which the server runs (default: 5000)  |
-|               | `NODE_ENV`                | Environment mode (`development` or `production`) |
-|               | `DEV_URL`                 | URL for frontend client                        |
-|               | `JWT_SECRET`              | Secret for signing JWT tokens                  |
-|               | `DB_HOST`, `DB_PORT`, etc.| Supabase/PostgreSQL connection details         |
-| `frontend/.env`| `REACT_APP_API_BASE_URL` | API base URL (e.g. `http://localhost:5000/api`) |
-|               | `REACT_APP_SCHOOL_NAME`   | Name displayed in the UI                       |
-|               | `REACT_APP_SCHOOL_LOGO`   | Path to logo asset                             |
-|               | `REACT_APP_DEBUG_MODE`    | Toggles debug features (true/false)            |
-
----
-
-## 🏗 Building for Production
-
-### Backend
-
-```bash
-cd backend
-npm run build        # if applicable
-npm run start
-```
-
-Ensure your `.env` settings are production-ready (`NODE_ENV=production`, `REACT_APP_DEBUG_MODE=false`, secure `JWT_SECRET`).
-
-### Frontend
-
-```bash
-cd src
-npm run build
-```
-
-Deploy build (e.g., serve with Nginx or Netlify), and update `REACT_APP_API_BASE_URL` to the production API endpoint.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository.
-2. Create a branch (`git checkout -b feature/your-feature`).
-3. Implement your feature and commit (`git commit -m "Add your feature"`).
-4. Push your branch (`git push origin feature/your-feature`).
-5. Submit a Pull Request.
-
----
-
-## 📜 License
-
-This project is open-source and available under the MIT License. Feel free to adapt as needed.
-
----
-
-## 📧 Contact
-
-For questions or feedback, reach out to the maintainer at **[umyanga2005](https://github.com/umyanga2005)** on GitHub.
-
----
-
-**Enjoy building your A/L Art Management System!**
