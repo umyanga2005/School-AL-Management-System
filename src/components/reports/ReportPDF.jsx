@@ -80,9 +80,10 @@ export const ReportPDF = {
       const avgColWidth = 10;
       const rankColWidth = 6;
       const percentageColWidth = 8;
+      const absentColWidth = 12;
 
       const subjectCols = subjects.length;
-      const remainingWidth = tableWidth - fixedColWidth - nameColWidth - (isGradeTable ? 0 : (totalColWidth + avgColWidth + rankColWidth + percentageColWidth));
+      const remainingWidth = tableWidth - fixedColWidth - nameColWidth - (isGradeTable ? 0 : (totalColWidth + avgColWidth + rankColWidth + absentColWidth + percentageColWidth));
       const subjectColWidth = Math.max(6, remainingWidth / subjectCols);
 
       const headerHeight = 30;
@@ -129,9 +130,9 @@ export const ReportPDF = {
         doc.line(x, y, x, y + headerHeight);
         x += avgColWidth;
 
-        doc.text('Rank', x + 4, y + 28, { angle: 90});
+        doc.text('Absent Days', x + 6, y + 28, { angle: 90 });
         doc.line(x, y, x, y + headerHeight);
-        x += rankColWidth;
+        x += absentColWidth;
 
         if (filters.reportType === 'term') {
           doc.text('Z-Score', x + 5, y + 28, { angle: 90 });
@@ -145,7 +146,8 @@ export const ReportPDF = {
         y: y + headerHeight, 
         subjectColWidth, 
         fixedColWidth, 
-        nameColWidth 
+        nameColWidth,
+        absentColWidth
       };
     };
 
@@ -154,7 +156,7 @@ export const ReportPDF = {
       const tableWidth = pageWidth - (margin * 2);
       const rowHeight = 5;
 
-      let { y, subjectColWidth, fixedColWidth, nameColWidth } = drawTableHeader(startY);
+      let { y, subjectColWidth, fixedColWidth, nameColWidth, absentColWidth } = drawTableHeader(startY);
 
       const totalColWidth = 10;
       const avgColWidth = 10;
@@ -168,7 +170,7 @@ export const ReportPDF = {
         if (y + rowHeight > pageHeight - margin - 15) {
           doc.addPage();
           currentY = margin;
-          ({ y, subjectColWidth, fixedColWidth, nameColWidth } = drawTableHeader(currentY));
+          ({ y, subjectColWidth, fixedColWidth, nameColWidth, absentColWidth } = drawTableHeader(currentY));
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(7);
         }
@@ -219,9 +221,10 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += avgColWidth;
 
-        doc.text(String(student.rank), x + rankColWidth/2, y + 4, { align: 'center' });
+        const absentDays = student.absentDays !== undefined ? String(student.absentDays) : '';
+        doc.text(absentDays, x + absentColWidth/2, y + 4, { align: 'center' });
         doc.line(x, y, x, y + rowHeight);
-        x += rankColWidth;
+        x += absentColWidth;
 
         if (filters.reportType === 'term') {
           const zScore = student.zScore ? student.zScore.toFixed(2) : '0.00';

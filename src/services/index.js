@@ -1,4 +1,4 @@
-// src/services/index.js - COMPLETE EXPORTS
+// src/services/index.js - UPDATED WITH TERM ATTENDANCE API
 import apiService from './api';
 import { studentApi } from './studentApi';
 import { subjectApi } from './subjectApi';
@@ -41,6 +41,57 @@ const classApi = {
   }
 };
 
+// NEW: Term Attendance API
+const termAttendanceApi = {
+  // Get all classes (from students table)
+  getClasses: () => {
+    const token = localStorage.getItem('token');
+    return apiService.getStudents(token);
+  },
+
+  // Get all terms
+  getTerms: () => {
+    const token = localStorage.getItem('token');
+    return apiService.getTerms(token);
+  },
+
+  // Get students by class
+  getStudentsByClass: (className) => {
+    const token = localStorage.getItem('token');
+    return apiService.getStudents(token, className);
+  },
+
+  // Get term attendance data
+  getTermAttendance: (filters) => {
+    const token = localStorage.getItem('token');
+    return apiService.getTermAttendance(token, filters);
+  },
+
+  // Save term attendance (bulk)
+  saveTermAttendance: (attendanceRecords) => {
+    const token = localStorage.getItem('token');
+    return apiService.bulkCreateTermAttendance(token, attendanceRecords);
+  },
+
+  // Update single term attendance record
+  updateTermAttendance: (recordId, attendanceData) => {
+    const token = localStorage.getItem('token');
+    return apiService.updateTermAttendance(token, recordId, attendanceData);
+  },
+
+  // Delete term attendance record
+  deleteTermAttendance: (recordId) => {
+    const token = localStorage.getItem('token');
+    return apiService.deleteTermAttendance(token, recordId);
+  },
+
+  // Get attendance statistics
+  getAttendanceStats: (filters) => {
+    const token = localStorage.getItem('token');
+    return apiService.getTermAttendanceStats(token, filters);
+  }
+};
+
 export {
   apiService,
   studentApi,
@@ -50,5 +101,6 @@ export {
   classApi,
   reportApi,
   savedReportsApi,
-  dashboardApi
+  dashboardApi,
+  termAttendanceApi  // NEW EXPORT
 };

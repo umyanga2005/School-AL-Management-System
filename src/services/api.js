@@ -1,7 +1,7 @@
-// src/services/api.js - FIXED BULK MARKS ENDPOINT + HEALTH CHECK ENDPOINTS
+// src/services/api.js - UPDATED WITH TERM ATTENDANCE ENDPOINTS
 class ApiService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
+    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
     this.endpoints = {
       auth: {
@@ -17,6 +17,7 @@ class ApiService {
       },
       users: `${this.baseURL}/users`,
       attendance: `${this.baseURL}/attendance`,
+      termAttendance: `${this.baseURL}/term-attendance`,
       students: `${this.baseURL}/students`,
       subjects: `${this.baseURL}/subjects`,
       terms: `${this.baseURL}/terms`,
@@ -176,7 +177,7 @@ class ApiService {
     });
   }
 
-  // Attendance methods
+  // Original Attendance methods (keeping separate from term attendance)
   async getAttendance(token) {
     return this.request(this.endpoints.attendance, {
       headers: this.getAuthHeaders(token)
@@ -188,6 +189,104 @@ class ApiService {
       method: 'POST',
       headers: this.getAuthHeaders(token),
       body: JSON.stringify(attendanceData)
+    });
+  }
+
+  // TERM ATTENDANCE METHODS
+  async getTermAttendanceClasses(token) {
+    return this.request(`${this.endpoints.termAttendance}/classes`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async getTermAttendanceTerms(token) {
+    return this.request(`${this.endpoints.termAttendance}/terms`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async getTermAttendanceActiveTerm(token) {
+    return this.request(`${this.endpoints.termAttendance}/terms/active`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async getTermAttendanceYears(token) {
+    return this.request(`${this.endpoints.termAttendance}/years`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async getTermAttendanceStudents(token, className) {
+    return this.request(`${this.endpoints.termAttendance}/students/${className}`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async getTermAttendance(token, filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
+
+    const url = `${this.endpoints.termAttendance}?${params.toString()}`;
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async createTermAttendance(token, attendanceData) {
+    return this.request(this.endpoints.termAttendance, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(attendanceData)
+    });
+  }
+
+  async bulkCreateTermAttendance(token, attendanceRecords) {
+    return this.request(`${this.endpoints.termAttendance}/bulk`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify({ records: attendanceRecords })
+    });
+  }
+
+  async updateTermAttendance(token, recordId, attendanceData) {
+    return this.request(`${this.endpoints.termAttendance}/${recordId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(attendanceData)
+    });
+  }
+
+  async deleteTermAttendance(token, recordId) {
+    return this.request(`${this.endpoints.termAttendance}/${recordId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  async saveTermAttendance(token, attendanceRecords) {
+    return this.request(this.endpoints.termAttendance, {
+      method: 'POST',
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify(attendanceRecords) // Remove the { records: } wrapper
+    });
+  }
+
+  async getTermAttendanceStats(token, filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
+
+    const url = `${this.endpoints.termAttendance}/stats?${params.toString()}`;
+    return this.request(url, {
+      headers: this.getAuthHeaders(token)
     });
   }
 
@@ -436,7 +535,7 @@ class ApiService {
     });
   }
 
-  // Report methods
+  // Report methods - UPDATED TO INCLUDE TERM ATTENDANCE DATA
   async getReports(token, filters = {}) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
@@ -461,6 +560,21 @@ class ApiService {
 
   async exportReport(token, reportId, format = 'pdf') {
     return this.request(`${this.endpoints.reports}/${reportId}/export?format=${format}`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+
+  // NEW: Get report data with term attendance
+  async getReportWithAttendance(token, filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value);
+      }
+    });
+
+    const url = `${this.endpoints.reports}/with-attendance?${params.toString()}`;
+    return this.request(url, {
       headers: this.getAuthHeaders(token)
     });
   }

@@ -30,6 +30,7 @@ const marksRoutes = require('./routes/marks');
 const reportsRoutes = require('./routes/reports');
 const classRoutes = require('./routes/classes');
 const savedReportsRoutes = require('./routes/savedReports');
+const termAttendanceRoutes = require('./routes/termAttendance');
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -42,7 +43,7 @@ app.use('/api/marks', marksRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/saved-reports', savedReportsRoutes);
-
+app.use('/api/term-attendance', termAttendanceRoutes); // Updated route
 // Enhanced health check route
 app.get('/api/health', async (req, res) => {
   try {

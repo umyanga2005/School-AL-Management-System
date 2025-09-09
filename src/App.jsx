@@ -1,4 +1,4 @@
-// App.jsx
+// App.jsx - UPDATED WITH TERM ATTENDANCE
 import React, { useState, useEffect } from 'react';
 
 // Styles
@@ -14,10 +14,13 @@ import Header from './components/layout/Header';
 // Dashboard
 import Dashboard from './components/dashboard/Dashboard';
 
-// AttendenceDashboards
+// AttendenceDashboards (Original)
 import TeacherAttendenceDashboard from './components/Attendence/TeacherAttendenceDashboard';
 import CoordinatorAttendenceDashboard from './components/Attendence/CoordinatorAttendenceDashboard';
 import AdminAttendenceDashboard from './components/Attendence/AdminAttendenceDashboard';
+
+// NEW: Term Attendance
+import StudentTermAttendance from './components/Attendence/StudentTermAttendance';
 
 // Student Management
 import StudentList from './components/students/StudentList';
@@ -162,18 +165,19 @@ const App = () => {
 
     let menuItems = [
       { key: 'dashboard', label: 'Dashboard', icon: '🏠' },
-      { key: 'attendance', label: 'Attendance', icon: '📊' }
+      { key: 'attendance', label: 'Daily Attendance', icon: '📊' }, // Renamed for clarity
     ];
 
     // Admin menu items
     if (currentUser.role === 'admin') {
       menuItems = [
         ...menuItems,
+        { key: 'termAttendance', label: 'Term Attendance', icon: '📈' }, // NEW MENU ITEM
         { key: 'students', label: 'Students', icon: '👨‍🎓' },
         { key: 'subjects', label: 'Subjects', icon: '📚' },
         { key: 'terms', label: 'Terms', icon: '📅' },
         { key: 'marks', label: 'Marks', icon: '📝' },
-        { key: 'reports', label: 'Reports', icon: '📈' },
+        { key: 'reports', label: 'Reports', icon: '📋' },
       ];
     }
 
@@ -181,8 +185,9 @@ const App = () => {
     if (currentUser.role === 'teacher') {
       menuItems = [
         ...menuItems,
+        { key: 'termAttendance', label: 'Term Attendance', icon: '📈' }, // NEW FOR TEACHERS TOO
         { key: 'marks', label: 'Marks Entry', icon: '📝' },
-        { key: 'reports', label: 'Reports', icon: '📈' },
+        { key: 'reports', label: 'Reports', icon: '📋' },
       ];
     }
 
@@ -190,7 +195,8 @@ const App = () => {
     if (currentUser.role === 'coordinator') {
       menuItems = [
         ...menuItems,
-        { key: 'reports', label: 'Reports', icon: '📈' },
+        { key: 'termAttendance', label: 'Term Attendance', icon: '📈' }, // NEW FOR COORDINATORS TOO
+        { key: 'reports', label: 'Reports', icon: '📋' },
       ];
     }
 
@@ -256,24 +262,24 @@ const App = () => {
     
     // For mobile, we'll show only the most important items
     const mobileMenuItems = menuItems.filter(item => 
-      ['dashboard', 'attendance', 'students', 'marks', 'reports'].includes(item.key)
+      ['dashboard', 'attendance', 'termAttendance', 'students', 'marks', 'reports'].includes(item.key)
     );
 
     return (
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-        <div className="flex justify-around py-2">
+        <div className="flex justify-around py-2 overflow-x-auto">
           {mobileMenuItems.map(item => (
             <button
               key={item.key}
-              className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 ${
+              className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 min-w-0 ${
                 activeMenu === item.key 
                   ? 'text-blue-600' 
                   : 'text-gray-600'
               }`}
               onClick={() => handleMenuClick(item.key)}
             >
-              <span className="text-xl">{item.icon}</span>
-              <span className="text-xs mt-1">{item.label}</span>
+              <span className="text-lg">{item.icon}</span>
+              <span className="text-xs mt-1 truncate">{item.label}</span>
             </button>
           ))}
         </div>
@@ -302,7 +308,9 @@ const App = () => {
         return <MarksEntry />;
       case 'reports':
         return <ClassReport {...commonProps} />;
-      case 'attendance':
+      case 'termAttendance': // NEW CASE
+        return <StudentTermAttendance />;
+      case 'attendance': // Original attendance (renamed for clarity)
         if (currentUser.role === 'admin') return (
           <AdminAttendenceDashboard
             currentUser={currentUser}
