@@ -1,14 +1,13 @@
-// src/services/termAttendanceApi.js - IMPROVED VERSION
+// src/services/termAttendanceApi.js - FIXED VERSION
 import apiService from './api';
 
 export const termAttendanceApi = {
-  // Get all classes
+  // Get all classes (from students table)
   getClasses: async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await apiService.getTermAttendanceClasses(token);
       
-      // Handle different response structures
       if (response.success) {
         if (response.data && Array.isArray(response.data.data)) {
           return { success: true, data: response.data.data };
@@ -33,7 +32,6 @@ export const termAttendanceApi = {
       const token = localStorage.getItem('token');
       const response = await apiService.getTermAttendanceTerms(token);
       
-      // Handle different response structures
       if (response.success) {
         if (response.data && Array.isArray(response.data.data)) {
           return { success: true, data: response.data.data };
@@ -59,7 +57,6 @@ export const termAttendanceApi = {
       const response = await apiService.getTermAttendanceActiveTerm(token);
       
       if (response.success && response.data) {
-        // Handle both nested and flat response structures
         const termData = response.data.data || response.data;
         if (termData) {
           return { success: true, data: termData };
@@ -81,7 +78,6 @@ export const termAttendanceApi = {
       const token = localStorage.getItem('token');
       const response = await apiService.getTermAttendanceYears(token);
       
-      // Handle different response structures
       if (response.success) {
         if (response.data && Array.isArray(response.data.data)) {
           return { success: true, data: response.data.data };
@@ -106,7 +102,6 @@ export const termAttendanceApi = {
       const token = localStorage.getItem('token');
       const response = await apiService.getTermAttendanceStudents(token, className);
       
-      // Handle different response structures
       if (response.success) {
         if (response.data && Array.isArray(response.data.data)) {
           return { success: true, data: response.data.data };
@@ -125,22 +120,49 @@ export const termAttendanceApi = {
     }
   },
 
-  // Get term attendance data
+  // Get term attendance data with filters (term_id, class, academic_year)
   getTermAttendance: async (filters) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await apiService.getTermAttendance(token, filters);
-      
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (filters.term_id) params.append('term_id', filters.term_id);
+      if (filters.class) params.append('class', filters.class);
+      if (filters.academic_year) params.append('academic_year', filters.academic_year);
+
+      const queryString = params.toString();
+      const url = `/api/term-attendance${queryString ? `?${queryString}` : ''}`;
+
+      const response = await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token)
+      });
+
       if (response.success) {
-        // Handle both nested and flat response structures
-        const attendanceData = response.data.data || response.data || [];
+        let attendanceData = response.data;
+        
+        // If data is nested, extract it
+        if (attendanceData && attendanceData.data && Array.isArray(attendanceData.data)) {
+          attendanceData = attendanceData.data;
+        } else if (!Array.isArray(attendanceData)) {
+          if (attendanceData && Array.isArray(attendanceData.attendance)) {
+            attendanceData = attendanceData.attendance;
+          } else {
+            console.warn('Unexpected attendance data format:', attendanceData);
+            attendanceData = [];
+          }
+        }
+
         return { success: true, data: attendanceData };
       } else {
-        return { success: false, error: response.error || 'Failed to fetch attendance' };
+        return { success: false, error: response.error || 'Failed to fetch attendance', data: [] };
       }
     } catch (error) {
-      console.error('Error fetching term attendance:', error);
-      return { success: false, error: error.message };
+      console.error('Error in getTermAttendance:', error);
+      return { success: false, error: error.message, data: [] };
     }
   },
 
@@ -168,14 +190,64 @@ export const termAttendanceApi = {
     }
   },
 
+  // Update single attendance record
+  updateTermAttendance: async (recordId, attendanceData) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await apiService.request(`/api/term-attendance/${recordId}`, {
+        method: 'PUT',
+        headers: apiService.getAuthHeaders(token),
+        body: JSON.stringify(attendanceData)
+      });
+
+      if (response.success) {
+        return { success: true, data: response.data, message: 'Attendance updated successfully' };
+      } else {
+        return { success: false, error: response.error || 'Failed to update attendance' };
+      }
+    } catch (error) {
+      console.error('Error updating attendance:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Delete attendance record
+  deleteTermAttendance: async (recordId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await apiService.request(`/api/term-attendance/${recordId}`, {
+        method: 'DELETE',
+        headers: apiService.getAuthHeaders(token)
+      });
+
+      if (response.success) {
+        return { success: true, message: 'Attendance record deleted successfully' };
+      } else {
+        return { success: false, error: response.error || 'Failed to delete attendance record' };
+      }
+    } catch (error) {
+      console.error('Error deleting attendance:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // Get attendance statistics
   getAttendanceStats: async (filters) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await apiService.getTermAttendanceStats(token, filters);
-      
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value);
+        }
+      });
+
+      const url = `${apiService.endpoints.termAttendance}/stats?${params.toString()}`;
+      const response = await apiService.request(url, {
+        headers: apiService.getAuthHeaders(token)
+      });
+
       if (response.success) {
-        // Handle both nested and flat response structures
         const statsData = response.data.data || response.data;
         return { success: true, data: statsData };
       } else {

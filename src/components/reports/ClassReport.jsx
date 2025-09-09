@@ -1,6 +1,6 @@
 // src/components/reports/ClassReport.jsx - UPDATED VERSION
 import React, { useState, useEffect, useCallback } from 'react';
-import { termApi, classApi, reportApi, savedReportsApi } from '../../services';
+import { termApi, classApi, reportApi, savedReportsApi, termAttendanceApi } from '../../services'; // Import termAttendanceApi
 import { ReportPDF } from './ReportPDF';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -62,6 +62,14 @@ const ClassReport = () => {
     rankingMethod: 'totalMarks',
     section: ''
   });
+
+  // Define the desired subject order
+  const desiredSubjectOrder = [
+    'Sinhala', 'Geography', 'Logic', 'Drama', 'Economics', 'History', 'BC', 'Politicle Science',
+    'Art', 'Dancing', 'Oriental Music', 'Home Economics', 'Media', 'English', 'ICT', 'Agri',
+    'Statistics', 'Japanese', 'Chinese', 'Korean', 'French', 'Mathematics',
+    'GIT', 'General English', 'General Test' // Common subjects
+  ];
 
   // Load initial data for dropdowns
   const loadInitialData = useCallback(async () => {
@@ -201,18 +209,23 @@ const ClassReport = () => {
               ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length 
               : 0;
             break;
+          case 'absent_days':
+            aValue = a.absent_days || 0;
+            bValue = b.absent_days || 0;
+            break;
+          case 'attendance_percentage':
+            // Ensure attendance_percentage is a number for sorting
+            aValue = typeof a.attendance_percentage === 'number' ? a.attendance_percentage : -1; // Use -1 or some other default for non-numbers
+            bValue = typeof b.attendance_percentage === 'number' ? b.attendance_percentage : -1;
+            break;
           default:
-            const subjectMarkA = a.marks.find(m => {
-              const subject = subjects.find(s => s.name === sortConfig.key);
-              return subject && m.subject_id === subject.id;
-            });
-            const subjectMarkB = b.marks.find(m => {
-              const subject = subjects.find(s => s.name === sortConfig.key);
-              return subject && m.subject_id === subject.id;
-            });
+            // For subject columns
+            const subject = subjects.find(s => s.name === sortConfig.key);
+            const subjectMarkA = subject ? a.marks.find(m => m.subject_id === subject.id) : null;
+            const subjectMarkB = subject ? b.marks.find(m => m.subject_id === subject.id) : null;
             
-            aValue = subjectMarkA ? subjectMarkA.marks : 0;
-            bValue = subjectMarkB ? subjectMarkB.marks : 0;
+            aValue = subjectMarkA && subjectMarkA.marks !== null && subjectMarkA.marks !== "" ? subjectMarkA.marks : -Infinity; // Treat empty/null marks as lowest for sorting
+            bValue = subjectMarkB && subjectMarkB.marks !== null && subjectMarkB.marks !== "" ? subjectMarkB.marks : -Infinity;
         }
         
         if (aValue < bValue) {
@@ -265,11 +278,11 @@ const ClassReport = () => {
     let subjectsWithMarksCount = 0;
 
     nonCommonSubjects.forEach(subject => {
-      const studentMark = student.marks.find(m => m.subject_id === subject.id && m.marks !== null);
+      const studentMark = student.marks.find(m => m.subject_id === subject.id && m.marks !== null && m.marks !== "");
       
       if (studentMark) {
         const allStudentsMarksForSubject = allStudents
-          .map(s => s.marks.find(m => m.subject_id === subject.id && m.marks !== null)?.marks)
+          .map(s => s.marks.find(m => m.subject_id === subject.id && m.marks !== null && m.marks !== "")?.marks)
           .filter(mark => mark !== undefined);
 
         if (allStudentsMarksForSubject.length > 1) { // Need at least 2 data points for std dev
@@ -297,8 +310,8 @@ const ClassReport = () => {
       rankedStudents.sort((a, b) => b.totalMarks - a.totalMarks);
     } else if (rankingMethod === 'average') {
       rankedStudents.sort((a, b) => {
-        const aNonCommon = a.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null);
-        const bNonCommon = b.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null);
+        const aNonCommon = a.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== "");
+        const bNonCommon = b.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== "");
         
         const aAvg = aNonCommon.length > 0 ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / aNonCommon.length : 0;
         const bAvg = bNonCommon.length > 0 ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length : 0;
@@ -322,7 +335,7 @@ const ClassReport = () => {
       if (rankingMethod === 'totalMarks') {
         currentValue = student.totalMarks;
       } else if (rankingMethod === 'average') {
-        const nonCommon = student.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null);
+        const nonCommon = student.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== "");
         currentValue = nonCommon.length > 0 ? nonCommon.reduce((sum, m) => sum + m.marks, 0) / nonCommon.length : 0;
       } else {
         currentValue = student.zScore;
@@ -374,6 +387,8 @@ const ClassReport = () => {
       }));
       blankStudent.totalMarks = 0;
       blankStudent.rank = 0;
+      blankStudent.absent_days = null; // Set to null for blank attendance
+      blankStudent.attendance_percentage = null; // Set to null for blank attendance
       return blankStudent;
     });
 
@@ -390,7 +405,8 @@ const ClassReport = () => {
       },
       currentTerm,
       filters,
-      className: filters.className
+      className: filters.className,
+      desiredSubjectOrder // Pass the desired subject order
     });
   };
 
@@ -424,11 +440,18 @@ const ClassReport = () => {
         reportFilters.class_name = filters.className;
       }
       
-      const response = await reportApi.getTermReport(reportFilters);
-      
-      if (response.success) {
-        let studentsData = response.data?.students || [];
-        let subjectsData = response.data?.subjects || [];
+      const [reportResponse, attendanceResponse] = await Promise.all([
+        reportApi.getTermReport(reportFilters),
+        termAttendanceApi.getTermAttendance({
+          term_id: filters.termId,
+          class: filters.className,
+          academic_year: filters.academicYear
+        })
+      ]);
+
+      if (reportResponse.success) {
+        let studentsData = reportResponse.data?.students || [];
+        let subjectsData = reportResponse.data?.subjects || [];
         
         // Process marks to show blank for missing marks
         studentsData.forEach(student => {
@@ -441,17 +464,57 @@ const ClassReport = () => {
             };
           });
         });
+
+        // Merge attendance data
+        if (attendanceResponse.success) {
+          // Extract the actual data array from the response
+          const attendanceData = attendanceResponse.data.data || attendanceResponse.data;
+          
+          if (Array.isArray(attendanceData)) {
+            const attendanceMap = new Map(attendanceData.map(att => [att.student_id, att]));
+            studentsData = studentsData.map(student => {
+              const studentAttendance = attendanceMap.get(student.id);
+              return {
+                ...student,
+                absent_days: studentAttendance ? studentAttendance.absent_days : null,
+                // FIX: Explicitly convert attendance_percentage to a number
+                attendance_percentage: studentAttendance && studentAttendance.attendance_percentage !== null && studentAttendance.attendance_percentage !== ''
+                                       ? parseFloat(studentAttendance.attendance_percentage) 
+                                       : null,
+                total_school_days: studentAttendance ? studentAttendance.total_school_days : null,
+              };
+            });
+          } else {
+            console.warn("Attendance data is not an array:", attendanceData);
+            // If attendance data is not an array, ensure these fields are null
+            studentsData = studentsData.map(student => ({
+              ...student,
+              absent_days: null,
+              attendance_percentage: null,
+              total_school_days: null,
+            }));
+          }
+        } else {
+          console.warn("Failed to load attendance data:", attendanceResponse.error);
+          // If attendance data fails, ensure these fields are null
+          studentsData = studentsData.map(student => ({
+            ...student,
+            absent_days: null,
+            attendance_percentage: null,
+            total_school_days: null,
+          }));
+        }
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
         setReportData(studentsData);
         setFilteredReportData(studentsData);
         setSubjects(subjectsData);
-        setSummary(response.data?.summary || {});
-        setCurrentTerm(response.data?.term || null);
+        setSummary(reportResponse.data?.summary || {});
+        setCurrentTerm(reportResponse.data?.term || null);
         setSuccess(`Report generated successfully. Found ${studentsData.length} students.`);
       } else {
-        throw new Error(response.error || 'Failed to generate report');
+        throw new Error(reportResponse.error || 'Failed to generate report');
       }
     } catch (err) {
       setError(err.message);
@@ -469,7 +532,8 @@ const ClassReport = () => {
       summary,
       currentTerm,
       filters,
-      className: filters.className
+      className: filters.className,
+      desiredSubjectOrder // Pass the desired subject order
     });
   };
 
@@ -484,21 +548,29 @@ const ClassReport = () => {
         'Class': student.current_class
       };
       
-      subjects.forEach(subject => {
-        const subjectMark = student.marks.find(m => m.subject_id === subject.id);
-        studentRow[subject.name] = subjectMark ? subjectMark.marks : '';
+      // Add subjects in desired order
+      desiredSubjectOrder.forEach(subjectName => {
+        const subject = subjects.find(s => s.name === subjectName);
+        const subjectMark = subject ? student.marks.find(m => m.subject_id === subject.id) : null;
+        studentRow[subjectName] = subjectMark && subjectMark.marks !== "" ? subjectMark.marks : '';
       });
-      
+
       studentRow['Total Marks'] = student.totalMarks;
       
       // Always include average column
       const nonCommonMarks = student.marks.filter(m => 
-        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null
+        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
       );
       studentRow['Average'] = nonCommonMarks.length > 0 
         ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length)
         : 0;
       
+      studentRow['Absent Days'] = student.absent_days !== null ? student.absent_days : '';
+      // Ensure attendance_percentage is a number before calling toFixed
+      studentRow['Percentage'] = typeof student.attendance_percentage === 'number' 
+                                 ? student.attendance_percentage.toFixed(2) 
+                                 : '';
+
       if (filters.rankingMethod === 'zscore') {
         studentRow['Z-Score'] = student.zScore || 0;
       }
@@ -529,21 +601,29 @@ const ClassReport = () => {
         Class: student.current_class
       };
       
-      subjects.forEach(subject => {
-        const subjectMark = student.marks.find(m => m.subject_id === subject.id);
-        studentRow[subject.name.replace(/\s/g, '_')] = subjectMark ? subjectMark.marks : '';
+      // Add subjects in desired order
+      desiredSubjectOrder.forEach(subjectName => {
+        const subject = subjects.find(s => s.name === subjectName);
+        const subjectMark = subject ? student.marks.find(m => m.subject_id === subject.id) : null;
+        studentRow[subjectName.replace(/\s/g, '_')] = subjectMark && subjectMark.marks !== "" ? subjectMark.marks : '';
       });
       
       studentRow.Total_Marks = student.totalMarks.toFixed(2);
       
       // Always include average
       const nonCommonMarks = student.marks.filter(m => 
-        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null
+        subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
       );
       studentRow.Average = nonCommonMarks.length > 0 
         ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
         : '0.00';
       
+      studentRow.Absent_Days = student.absent_days !== null ? student.absent_days : '';
+      // Ensure attendance_percentage is a number before calling toFixed
+      studentRow.Attendance_Percentage = typeof student.attendance_percentage === 'number' 
+                                         ? student.attendance_percentage.toFixed(2) 
+                                         : '';
+
       if (filters.rankingMethod === 'zscore') {
         studentRow.Z_Score = student.zScore ? student.zScore.toFixed(2) : '0.00';
       }
@@ -585,7 +665,9 @@ const ClassReport = () => {
             totalMarks: student.totalMarks,
             average: student.average,
             zScore: student.zScore,
-            marks: student.marks
+            marks: student.marks,
+            absent_days: student.absent_days, // Include attendance data
+            attendance_percentage: student.attendance_percentage // Include attendance data
           })),
           subjects: subjects,
           summary: summary
@@ -857,27 +939,58 @@ const ClassReport = () => {
                   >
                     Index No {sortConfig.key === 'index_number' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Name
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('name')}
+                  >
+                    Name {sortConfig.key === 'name' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Class
-                  </th>
-                  
-                  {/* Subject Columns */}
-                  {subjects.map(subject => (
-                    <th key={subject.id} className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                      {subject.name}
-                    </th>
-                  ))}
-                  
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Total
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('class')}
+                  >
+                    Class {sortConfig.key === 'class' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
                   </th>
                   
-                  {/* Always show average column */}
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">
-                    Average
+                  {/* Subject Columns in desired order */}
+                  {desiredSubjectOrder.map(subjectName => {
+                    const subject = subjects.find(s => s.name === subjectName);
+                    return (
+                      <th 
+                        key={subjectName} 
+                        className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort(subjectName)}
+                      >
+                        {subjectName} {sortConfig.key === subjectName && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                      </th>
+                    );
+                  })}
+                  
+                  <th 
+                    className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('total')}
+                  >
+                    Total {sortConfig.key === 'total' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  </th>
+                  
+                  <th 
+                    className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('average')}
+                  >
+                    Avg {sortConfig.key === 'average' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  </th>
+
+                  <th 
+                    className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('absent_days')}
+                  >
+                    Absent Days {sortConfig.key === 'absent_days' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('attendance_percentage')}
+                  >
+                    Percentage {sortConfig.key === 'attendance_percentage' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}
                   </th>
                   
                   {filters.rankingMethod === 'zscore' && (
@@ -903,12 +1016,13 @@ const ClassReport = () => {
                       {student.current_class}
                     </td>
                     
-                    {/* Subject Marks */}
-                    {subjects.map(subject => {
-                      const subjectMark = student.marks.find(m => m.subject_id === subject.id);
+                    {/* Subject Marks in desired order */}
+                    {desiredSubjectOrder.map(subjectName => {
+                      const subject = subjects.find(s => s.name === subjectName);
+                      const subjectMark = subject ? student.marks.find(m => m.subject_id === subject.id) : null;
                       return (
-                        <td key={subject.id} className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                          {subjectMark ? subjectMark.marks : '-'}
+                        <td key={subjectName} className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                          {subjectMark && subjectMark.marks !== "" ? subjectMark.marks : '-'}
                         </td>
                       );
                     })}
@@ -921,12 +1035,22 @@ const ClassReport = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
                       {(() => {
                         const nonCommonMarks = student.marks.filter(m => 
-                          subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null
+                          subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
                         );
                         return nonCommonMarks.length > 0 
                           ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
                           : '0.00';
                       })()}
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                      {student.absent_days !== null ? student.absent_days : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                      {/* Fix: Check if attendance_percentage is a number before calling toFixed */}
+                      {typeof student.attendance_percentage === 'number' 
+                        ? student.attendance_percentage.toFixed(2) 
+                        : '-'}
                     </td>
                     
                     {filters.rankingMethod === 'zscore' && (

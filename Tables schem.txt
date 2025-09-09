@@ -23,19 +23,6 @@ create table public.class_promotions (
   constraint class_promotions_student_id_fkey foreign KEY (student_id) references students (id)
 ) TABLESPACE pg_default;
 
-create table public.class_subjects (
-  id serial not null,
-  class_name character varying(20) not null,
-  subject_id integer not null,
-  academic_year integer not null,
-  status character varying(20) null default 'active'::character varying,
-  created_at timestamp without time zone null default now(),
-  updated_at timestamp without time zone null default now(),
-  constraint class_subjects_pkey primary key (id),
-  constraint class_subjects_class_name_subject_id_academic_year_key unique (class_name, subject_id, academic_year),
-  constraint class_subjects_subject_id_fkey foreign KEY (subject_id) references subjects (id)
-) TABLESPACE pg_default;
-
 create table public.marks (
   id serial not null,
   student_id integer not null,
@@ -47,11 +34,13 @@ create table public.marks (
   status character varying(20) null default 'active'::character varying,
   created_at timestamp without time zone null default now(),
   updated_at timestamp without time zone null default now(),
+  entered_by integer null,
   constraint marks_pkey primary key (id),
   constraint marks_student_id_subject_id_term_id_key unique (student_id, subject_id, term_id),
   constraint marks_student_id_fkey foreign KEY (student_id) references students (id),
-  constraint marks_subject_id_fkey foreign KEY (subject_id) references subjects (id),
+  constraint marks_entered_by_fkey foreign KEY (entered_by) references users (id),
   constraint marks_teacher_id_fkey foreign KEY (teacher_id) references users (id),
+  constraint marks_subject_id_fkey foreign KEY (subject_id) references subjects (id),
   constraint marks_marks_check check (
     (
       (marks >= (0)::numeric)
@@ -59,6 +48,25 @@ create table public.marks (
     )
   )
 ) TABLESPACE pg_default;
+
+create table public.saved_reports (
+  id serial not null,
+  term_id integer not null,
+  class_name character varying(255) null,
+  academic_year integer not null,
+  ranking_method character varying(50) not null,
+  generated_at timestamp without time zone not null default CURRENT_TIMESTAMP,
+  report_data jsonb not null,
+  created_by integer not null,
+  created_at timestamp without time zone not null default CURRENT_TIMESTAMP,
+  constraint saved_reports_pkey primary key (id),
+  constraint saved_reports_created_by_fkey foreign KEY (created_by) references users (id),
+  constraint saved_reports_term_id_fkey foreign KEY (term_id) references terms (id)
+) TABLESPACE pg_default;
+
+create index IF not exists idx_saved_reports_created_by on public.saved_reports using btree (created_by) TABLESPACE pg_default;
+
+create index IF not exists idx_saved_reports_academic_year on public.saved_reports using btree (academic_year) TABLESPACE pg_default;
 
 create table public.student_subjects (
   id serial not null,
@@ -84,6 +92,42 @@ create trigger update_student_subjects_updated_at BEFORE
 update on student_subjects for EACH row
 execute FUNCTION update_updated_at_column ();
 
+create table public.student_term_attendance (
+  id bigserial not null,
+  student_id integer not null,
+  term_id integer not null,
+  academic_year character varying(10) not null,
+  total_school_days integer not null,
+  attended_days integer not null,
+  absent_days integer not null,
+  attendance_percentage numeric(5, 2) not null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint student_term_attendance_pkey primary key (id),
+  constraint student_term_attendance_unique unique (student_id, term_id, academic_year),
+  constraint student_term_attendance_student_id_fkey foreign KEY (student_id) references students (id) on delete CASCADE,
+  constraint student_term_attendance_term_id_fkey foreign KEY (term_id) references terms (id) on delete CASCADE,
+  constraint student_term_attendance_attended_days_check check ((attended_days >= 0)),
+  constraint attendance_days_check check ((attended_days <= total_school_days)),
+  constraint student_term_attendance_total_school_days_check check ((total_school_days > 0)),
+  constraint student_term_attendance_absent_days_check check ((absent_days >= 0)),
+  constraint absent_days_check check (
+    (absent_days = (total_school_days - attended_days))
+  ),
+  constraint student_term_attendance_attendance_percentage_check check (
+    (
+      (attendance_percentage >= (0)::numeric)
+      and (attendance_percentage <= (100)::numeric)
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_student_term_attendance_student_id on public.student_term_attendance using btree (student_id) TABLESPACE pg_default;
+
+create index IF not exists idx_student_term_attendance_term_id on public.student_term_attendance using btree (term_id) TABLESPACE pg_default;
+
+create index IF not exists idx_student_term_attendance_academic_year on public.student_term_attendance using btree (academic_year) TABLESPACE pg_default;
+
 create table public.students (
   id serial not null,
   index_number character varying(50) not null,
@@ -106,7 +150,6 @@ create table public.students (
   constraint unique_index_number unique (index_number)
 ) TABLESPACE pg_default;
 
-
 create table public.subjects (
   id serial not null,
   subject_code character varying(20) not null,
@@ -120,69 +163,15 @@ create table public.subjects (
   constraint subjects_subject_code_key unique (subject_code)
 ) TABLESPACE pg_default;
 
-create table public.terms (
+create table public.subjects (
   id serial not null,
-  term_number integer not null,
-  term_name character varying(100) not null,
-  exam_month integer not null,
-  exam_year integer not null,
-  status character varying(20) null default 'inactive'::character varying,
+  subject_code character varying(20) not null,
+  subject_name character varying(255) not null,
+  stream character varying(50) not null,
+  description text null,
+  status character varying(20) null default 'active'::character varying,
   created_at timestamp without time zone null default now(),
   updated_at timestamp without time zone null default now(),
-  constraint terms_pkey primary key (id),
-  constraint terms_term_number_exam_year_key unique (term_number, exam_year),
-  constraint terms_exam_month_check check (
-    (
-      (exam_month >= 1)
-      and (exam_month <= 12)
-    )
-  ),
-  constraint terms_term_number_check check (
-    (
-      (term_number >= 1)
-      and (term_number <= 3)
-    )
-  )
+  constraint subjects_pkey primary key (id),
+  constraint subjects_subject_code_key unique (subject_code)
 ) TABLESPACE pg_default;
-
-create table public.users (
-  id serial not null,
-  username character varying(255) not null,
-  password_hash text null,
-  role character varying(50) not null,
-  full_name character varying(255) null,
-  assigned_class character varying(100) null,
-  temp_password boolean null default false,
-  created_at timestamp without time zone null default CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone null,
-  constraint users_pkey primary key (id),
-  constraint users_username_key unique (username)
-) TABLESPACE pg_default;
-
-
-// First, let's add the class_reports table to the database schema
-// Add this to Tables schem.txt
-
-create table public.class_reports (
-  id serial not null,
-  academic_year integer not null,
-  term_id integer not null,
-  class_name character varying(50) not null,
-  calculation_method character varying(50) not null,
-  report_data jsonb not null,
-  generated_by integer not null,
-  generated_at timestamp without time zone null default now(),
-  created_at timestamp without time zone null default now(),
-  updated_at timestamp without time zone null default now(),
-  constraint class_reports_pkey primary key (id),
-  constraint class_reports_generated_by_fkey foreign KEY (generated_by) references users (id),
-  constraint class_reports_term_id_fkey foreign KEY (term_id) references terms (id)
-) TABLESPACE pg_default;
-
-create index IF not exists idx_class_reports_class on public.class_reports using btree (class_name) TABLESPACE pg_default;
-
-create index IF not exists idx_class_reports_year on public.class_reports using btree (academic_year) TABLESPACE pg_default;
-
-create index IF not exists idx_class_reports_term on public.class_reports using btree (term_id) TABLESPACE pg_default;
-
-create index IF not exists idx_class_reports_generated_by on public.class_reports using btree (generated_by) TABLESPACE pg_default;
