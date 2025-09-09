@@ -132,7 +132,12 @@ export const ReportPDF = {
       });
 
       if (!isGradeTable) {
-        doc.text('Total', x + totalColWidth/2, y + 28, { angle: 90});
+        // Conditional header for Total/Z-Score
+        if (filters.rankingMethod === 'zscore') {
+          doc.text('Z-Score', x + totalColWidth/2, y + 28, { angle: 90});
+        } else {
+          doc.text('Total', x + totalColWidth/2, y + 28, { angle: 90});
+        }
         doc.line(x, y, x, y + headerHeight);
         x += totalColWidth;
 
@@ -225,7 +230,13 @@ export const ReportPDF = {
           x += subjectColWidth;
         });
 
-        doc.text(student.totalMarks.toFixed(0), x + totalColWidth/2, y + 4, { align: 'center' });
+        // Conditionally display Total Marks or Z-Score
+        if (filters.rankingMethod === 'zscore') {
+          const zScoreText = student.zScore ? student.zScore.toFixed(2) : '0.00';
+          doc.text(zScoreText, x + totalColWidth / 2, y + 4, { align: 'center' });
+        } else {
+          doc.text(student.totalMarks.toFixed(0), x + totalColWidth / 2, y + 4, { align: 'center' });
+        }
         doc.line(x, y, x, y + rowHeight);
         x += totalColWidth;
 

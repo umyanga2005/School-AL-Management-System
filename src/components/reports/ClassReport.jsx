@@ -195,18 +195,19 @@ const ClassReport = () => {
             bValue = b.totalMarks;
             break;
           case 'average':
+            // Average is always based on non-common subjects divided by 3
             const aNonCommon = a.marks.filter(m => 
-              subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+              subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
             );
             aValue = aNonCommon.length > 0 
-              ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / aNonCommon.length 
+              ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / 3 
               : 0;
             
             const bNonCommon = b.marks.filter(m => 
-              subjects.find(s => s.id === m.subject_id)?.stream !== 'Common'
+              subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
             );
             bValue = bNonCommon.length > 0 
-              ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length 
+              ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / 3 
               : 0;
             break;
           case 'absent_days':
@@ -256,6 +257,9 @@ const ClassReport = () => {
       }
       
       // If ranking method is average or zscore, disable includeCommon
+      // The average calculation itself is always based on non-common subjects divided by 3,
+      // but the 'includeCommon' checkbox still affects the 'totalMarks' calculation.
+      // So, we only disable it if the ranking method is average or zscore, as it's irrelevant for those.
       if (name === 'rankingMethod' && (value === 'average' || value === 'zscore')) {
         newFilters.includeCommon = false;
       }
@@ -310,11 +314,12 @@ const ClassReport = () => {
       rankedStudents.sort((a, b) => b.totalMarks - a.totalMarks);
     } else if (rankingMethod === 'average') {
       rankedStudents.sort((a, b) => {
+        // Average is always based on non-common subjects divided by 3
         const aNonCommon = a.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== "");
         const bNonCommon = b.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== "");
         
-        const aAvg = aNonCommon.length > 0 ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / aNonCommon.length : 0;
-        const bAvg = bNonCommon.length > 0 ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / bNonCommon.length : 0;
+        const aAvg = aNonCommon.length > 0 ? aNonCommon.reduce((sum, m) => sum + m.marks, 0) / 3 : 0;
+        const bAvg = bNonCommon.length > 0 ? bNonCommon.reduce((sum, m) => sum + m.marks, 0) / 3 : 0;
         
         return bAvg - aAvg;
       });
@@ -336,7 +341,7 @@ const ClassReport = () => {
         currentValue = student.totalMarks;
       } else if (rankingMethod === 'average') {
         const nonCommon = student.marks.filter(m => subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== "");
-        currentValue = nonCommon.length > 0 ? nonCommon.reduce((sum, m) => sum + m.marks, 0) / nonCommon.length : 0;
+        currentValue = nonCommon.length > 0 ? nonCommon.reduce((sum, m) => sum + m.marks, 0) / 3 : 0;
       } else {
         currentValue = student.zScore;
       }
@@ -507,10 +512,30 @@ const ClassReport = () => {
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
+        // Calculate class average based on the new definition
+        let calculatedClassAverage = 0;
+        if (filters.reportType === 'class' && studentsData.length > 0 && subjectsData.length > 0) {
+          let totalMarksSum = 0;
+          let totalSubjectsCount = 0;
+
+          studentsData.forEach(student => {
+            student.marks.forEach(mark => {
+              if (mark.marks !== null && mark.marks !== "") {
+                totalMarksSum += mark.marks;
+                totalSubjectsCount++;
+              }
+            });
+          });
+          calculatedClassAverage = totalSubjectsCount > 0 ? (totalMarksSum / totalSubjectsCount) : 0;
+        }
+
         setReportData(studentsData);
         setFilteredReportData(studentsData);
         setSubjects(subjectsData);
-        setSummary(reportResponse.data?.summary || {});
+        setSummary({
+          ...reportResponse.data?.summary || {},
+          classAverage: calculatedClassAverage.toFixed(2) // Update class average here
+        });
         setCurrentTerm(reportResponse.data?.term || null);
         setSuccess(`Report generated successfully. Found ${studentsData.length} students.`);
       } else {
@@ -557,12 +582,12 @@ const ClassReport = () => {
 
       studentRow['Total Marks'] = student.totalMarks;
       
-      // Always include average column
+      // Always include average column, calculated as sum of non-common subjects divided by 3
       const nonCommonMarks = student.marks.filter(m => 
         subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
       );
       studentRow['Average'] = nonCommonMarks.length > 0 
-        ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length)
+        ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / 3)
         : 0;
       
       studentRow['Absent Days'] = student.absent_days !== null ? student.absent_days : '';
@@ -610,12 +635,12 @@ const ClassReport = () => {
       
       studentRow.Total_Marks = student.totalMarks.toFixed(2);
       
-      // Always include average
+      // Always include average, calculated as sum of non-common subjects divided by 3
       const nonCommonMarks = student.marks.filter(m => 
         subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
       );
       studentRow.Average = nonCommonMarks.length > 0 
-        ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
+        ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / 3).toFixed(2)
         : '0.00';
       
       studentRow.Absent_Days = student.absent_days !== null ? student.absent_days : '';
@@ -663,7 +688,15 @@ const ClassReport = () => {
             class: student.current_class,
             rank: student.rank,
             totalMarks: student.totalMarks,
-            average: student.average,
+            // The average stored here should also reflect the "sum of non-common subjects divided by 3" logic
+            average: (() => {
+              const nonCommonMarks = student.marks.filter(m => 
+                subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
+              );
+              return nonCommonMarks.length > 0 
+                ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / 3)
+                : 0;
+            })(),
             zScore: student.zScore,
             marks: student.marks,
             absent_days: student.absent_days, // Include attendance data
@@ -794,8 +827,8 @@ const ClassReport = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="totalMarks">Total Marks</option>
-              <option value="average">Average (No Common)</option>
-              <option value="zscore">Z-Score (No Common)</option>
+              <option value="average">Average (Non-Common / 3)</option>
+              <option value="zscore">Z-Score (Non-Common)</option>
             </select>
           </div>
           
@@ -811,7 +844,7 @@ const ClassReport = () => {
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="includeCommon" className="ml-2 block text-sm text-gray-900">
-              Include Common Subjects
+              Include Common Subjects (for Total Marks)
               {(filters.rankingMethod === 'average' || filters.rankingMethod === 'zscore') && 
                 <span className="text-xs text-gray-500 ml-1">(Disabled for this ranking method)</span>
               }
@@ -871,7 +904,7 @@ const ClassReport = () => {
                 {currentTerm && `${currentTerm.term_name} (${currentTerm.exam_year})`}
                 {filters.reportType === 'class' && ` • Class: ${filters.className}`}
                 {` • Ranking by: ${filters.rankingMethod === 'totalMarks' ? 'Total Marks' : 
-                  filters.rankingMethod === 'average' ? 'Average (No Common Subjects)' : 'Z-Score (No Common Subjects)'}`}
+                  filters.rankingMethod === 'average' ? 'Average (Non-Common / 3)' : 'Z-Score (Non-Common Subjects)'}`}
               </p>
               <p className="text-sm text-gray-600 mt-1">
                 Showing {filteredReportData.length} of {reportData.length} students
@@ -906,10 +939,12 @@ const ClassReport = () => {
                 <p className="text-sm text-gray-500">Total Subjects</p>
                 <p className="text-xl font-bold">{summary.totalSubjects || 0}</p>
               </div>
-              <div className="bg-white p-3 rounded shadow-sm">
-                <p className="text-sm text-gray-500">Class Average</p>
-                <p className="text-xl font-bold">{summary.classAverage || 0}%</p>
-              </div>
+              {filters.reportType === 'class' && ( // Conditionally render Class Average
+                <div className="bg-white p-3 rounded shadow-sm">
+                  <p className="text-sm text-gray-500">Class Average</p>
+                  <p className="text-xl font-bold">{summary.classAverage || '0.00'}%</p>
+                </div>
+              )}
               <div className="bg-white p-3 rounded shadow-sm">
                 <p className="text-sm text-gray-500">Highest Score</p>
                 <p className="text-xl font-bold">{summary.highestScore || 0}%</p>
@@ -1031,14 +1066,14 @@ const ClassReport = () => {
                       {student.totalMarks.toFixed(2)}
                     </td>
                     
-                    {/* Always show average */}
+                    {/* Always show average, calculated as sum of non-common subjects divided by 3 */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
                       {(() => {
                         const nonCommonMarks = student.marks.filter(m => 
                           subjects.find(s => s.id === m.subject_id)?.stream !== 'Common' && m.marks !== null && m.marks !== ""
                         );
                         return nonCommonMarks.length > 0 
-                          ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length).toFixed(2)
+                          ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / 3).toFixed(2)
                           : '0.00';
                       })()}
                     </td>
