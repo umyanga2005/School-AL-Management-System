@@ -262,7 +262,7 @@ const App = () => {
     
     // For mobile, we'll show only the most important items
     const mobileMenuItems = menuItems.filter(item => 
-      ['dashboard', 'attendance', 'termAttendance', 'students', 'marks', 'reports'].includes(item.key)
+      ['dashboard', 'termAttendance', 'students', 'marks', 'reports'].includes(item.key)
     );
 
     return (
