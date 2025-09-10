@@ -9,7 +9,7 @@ const Header = ({ currentUser, onLogout }) => {
         <div className="header-left">
           <div className="header-icon"><Users size={20} /></div>
           <div className="header-info">
-            <h1>Attendance System</h1>
+            <h1>SCC A/L AMS</h1>
             <p>
               {currentUser?.name} • {currentUser?.role?.charAt(0).toUpperCase() + currentUser?.role?.slice(1)}
             </p>
