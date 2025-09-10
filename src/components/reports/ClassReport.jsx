@@ -895,9 +895,9 @@ useEffect(() => {
           </div>
         </div>
         
-        <div className="mt-6 flex justify-between items-center">
+        <div className="mt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           {/* Student Search */}
-          <div className="w-1/2">
+          <div className="w-full md:w-1/2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Search Students</label>
             <input
               type="text"
@@ -910,7 +910,7 @@ useEffect(() => {
           </div>
           
           {/* Action Buttons */}
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2 justify-start md:justify-end">
             {/* Blank Mark Sheet Button */}
             <button 
               onClick={handleExportBlankMarksheet} 
