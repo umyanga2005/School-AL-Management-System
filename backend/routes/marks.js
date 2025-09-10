@@ -1,4 +1,4 @@
-// backend/routes/marks.js - FIXED VERSION
+// backend/routes/marks.js - UPDATED VERSION WITH AB SUPPORT
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { db } = require('../config/database');
@@ -116,12 +116,22 @@ router.post('/bulk', requireAuth, async (req, res) => {
     for (const mark of marksData) {
       const { student_id, subject_id, marks } = mark;
       
-      if (!student_id || !subject_id || marks === undefined || marks === null) {
+      if (!student_id || !subject_id || (marks === undefined || marks === null)) {
         return res.status(400).json({ success: false, error: 'Invalid mark data format' });
       }
       
-      if (marks < 0 || marks > 100) {
-        return res.status(400).json({ success: false, error: 'Marks must be between 0 and 100' });
+      // Allow 'AB', 'ab', or whole numbers between 0 and 100
+      if (typeof marks === 'string') {
+        const upperMarks = marks.toUpperCase().trim();
+        if (upperMarks !== 'AB') {
+          return res.status(400).json({ success: false, error: 'String marks must be "AB" only' });
+        }
+      } else if (typeof marks === 'number') {
+        if (!Number.isInteger(marks) || marks < 0 || marks > 100) {
+          return res.status(400).json({ success: false, error: 'Marks must be whole numbers between 0 and 100 or "AB"' });
+        }
+      } else {
+        return res.status(400).json({ success: false, error: 'Marks must be a whole number between 0 and 100 or "AB"' });
       }
     }
     
@@ -168,17 +178,21 @@ router.post('/bulk', requireAuth, async (req, res) => {
           [student_id, subject_id, term_id]
         );
         
+        // Convert 'AB' to NULL for database storage, keep integers as is
+        const marksValue = (typeof marks === 'string' && marks.toUpperCase().trim() === 'AB') ? null : parseInt(marks);
+        const statusValue = (typeof marks === 'string' && marks.toUpperCase().trim() === 'AB') ? 'absent' : 'active';
+
         if (existingCheck.rows.length > 0) {
-          // Update existing mark - use teacher_id from req.user.id
+          // Update existing mark
           await db.execute(
-            'UPDATE marks SET marks = $1, teacher_id = $2, updated_at = NOW() WHERE id = $3',
-            [marks, req.user.id, existingCheck.rows[0].id]
+            'UPDATE marks SET marks = $1, teacher_id = $2, updated_at = NOW(), status = $4 WHERE id = $3',
+            [marksValue, req.user.id, existingCheck.rows[0].id, statusValue]
           );
         } else {
-          // FIXED: Use 'entry_date' instead of 'entered_at'
+          // Insert new mark
           await db.execute(
-            'INSERT INTO marks (student_id, subject_id, term_id, marks, teacher_id, entry_date) VALUES ($1, $2, $3, $4, $5, NOW())',
-            [student_id, subject_id, term_id, marks, req.user.id]
+            'INSERT INTO marks (student_id, subject_id, term_id, marks, teacher_id, entry_date, status) VALUES ($1, $2, $3, $4, $5, NOW(), $6)',
+            [student_id, subject_id, term_id, marksValue, req.user.id, statusValue]
           );
         }
       }

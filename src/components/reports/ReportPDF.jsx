@@ -1,4 +1,4 @@
-// src/components/reports/ReportPDF.jsx - UPDATED VERSION
+// src/components/reports/ReportPDF.jsx - UPDATED VERSION WITH "AB" FIX
 import jsPDF from 'jspdf';
 
 export const ReportPDF = {
@@ -156,14 +156,6 @@ export const ReportPDF = {
         doc.text('Percentage', x + percentageColWidth/2, y + 28, { angle: 90 }); // Attendance Percentage
         doc.line(x, y, x, y + headerHeight);
         x += percentageColWidth;
-
-        // Z-Score is conditional, but the request implies it's separate from "Percentage" (attendance)
-        // If you want Z-Score here, you'd add another column. For now, I'll assume "Percentage" is attendance.
-        // if (filters.reportType === 'term' && filters.rankingMethod === 'zscore') {
-        //   doc.text('Z-Score', x + 5, y + 28, { angle: 90 });
-        //   doc.line(x, y, x, y + headerHeight);
-        //   x += percentageColWidth; // Reusing width for Z-Score
-        // }
       }
 
       return { 
@@ -220,10 +212,14 @@ export const ReportPDF = {
 
         subjectsToDisplay.forEach(subject => {
           const subjectMark = student.marks.find(m => m.subject_id === subject.id);
-          // Handle null/undefined marks and empty strings
+          // Handle null/undefined marks and empty strings, and show 'AB' if status is 'absent'
           let markText = '';
-          if (subjectMark && subjectMark.marks !== null && subjectMark.marks !== undefined && subjectMark.marks !== '') {
-            markText = String(subjectMark.marks);
+          if (subjectMark) {
+            if (subjectMark.marks === null && subjectMark.status === 'absent') {
+              markText = 'AB';
+            } else if (subjectMark.marks !== null && subjectMark.marks !== undefined && subjectMark.marks !== '') {
+              markText = String(subjectMark.marks);
+            }
           }
           doc.text(markText, x + subjectColWidth/2, y + 4, { align: 'center' });
           doc.line(x, y, x, y + rowHeight);
@@ -264,14 +260,6 @@ export const ReportPDF = {
         doc.text(student.attendance_percentage ? student.attendance_percentage.toFixed(0) : '0', x + percentageColWidth/2, y + 4, { align: 'center' }); // Attendance Percentage
         doc.line(x, y, x, y + rowHeight);
         x += percentageColWidth;
-
-        // If Z-Score is needed as a separate column, add it here
-        // if (filters.reportType === 'term' && filters.rankingMethod === 'zscore') {
-        //   const zScore = student.zScore ? student.zScore.toFixed(2) : '0.00';
-        //   doc.text(zScore, x + percentageColWidth/2, y + 4, { align: 'center' });
-        //   doc.line(x, y, x, y + rowHeight);
-        //   x += percentageColWidth;
-        // }
 
         y += rowHeight;
       });

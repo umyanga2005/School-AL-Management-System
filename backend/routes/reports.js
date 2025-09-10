@@ -68,6 +68,7 @@ router.get('/term-report', requireAuth, async (req, res) => {
         s.subject_name,
         s.stream,
         COALESCE(m.marks, NULL) as marks,
+        m.status as mark_status, -- Include mark status
         m.entry_date,
         u.username as teacher_username,
         u.full_name as teacher_name
@@ -161,6 +162,7 @@ router.get('/term-report', requireAuth, async (req, res) => {
         subject_name: row.subject_name,
         stream: row.stream,
         marks: markValue,
+        status: row.mark_status, // Pass the mark status
         teacher: row.teacher_name || row.teacher_username,
         entry_date: row.entry_date,
         is_absent: markValue === null

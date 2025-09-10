@@ -1,4 +1,4 @@
-// src/components/marks/MarksEntry.jsx - FIXED VERSION
+// src/components/marks/MarksEntry.jsx - UPDATED VERSION WITH AB SUPPORT AND INTEGER MARKS
 import React, { useState, useEffect } from 'react';
 import { marksApi, studentApi, subjectApi, termApi } from '../../services';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -102,11 +102,9 @@ const MarksEntry = () => {
       setSubjectLoading(true);
       console.log('Filtering subjects for class:', selectedClass);
       
-      // Get current year for filtering
       const currentYear = new Date().getFullYear();
       
       try {
-        // First try to get subjects from class endpoint
         const subjectsRes = await subjectApi.getClassSubjects(selectedClass, currentYear);
         
         console.log('Class subjects response:', subjectsRes);
@@ -117,23 +115,19 @@ const MarksEntry = () => {
           
           console.log(`Found ${classSubjects.length} subjects for class ${selectedClass}`);
           
-          // Auto-select first subject if available and none is selected
           if (!selectedSubject && classSubjects.length > 0) {
             setSelectedSubject(classSubjects[0].id.toString());
             console.log('Auto-selected first subject:', classSubjects[0]);
           }
           
-          // Clear subject selection if currently selected subject is not available for this class
           if (selectedSubject && !classSubjects.find(s => s.id.toString() === selectedSubject)) {
             setSelectedSubject('');
             console.log('Cleared subject selection - not available for this class');
           }
         } else {
-          // Fallback: Show all subjects if no specific class subjects found
           console.log('No class-specific subjects found, showing all subjects as fallback');
           setFilteredSubjects(subjects);
           
-          // Auto-select first subject if available
           if (!selectedSubject && subjects.length > 0) {
             setSelectedSubject(subjects[0].id.toString());
             console.log('Auto-selected first subject from all subjects:', subjects[0]);
@@ -141,10 +135,8 @@ const MarksEntry = () => {
         }
       } catch (classSubjectsError) {
         console.warn('Failed to get class-specific subjects, falling back to all subjects:', classSubjectsError);
-        // Fallback: Show all subjects if class-specific fetch fails
         setFilteredSubjects(subjects);
         
-        // Auto-select first subject if available
         if (!selectedSubject && subjects.length > 0) {
           setSelectedSubject(subjects[0].id.toString());
           console.log('Auto-selected first subject from fallback:', subjects[0]);
@@ -152,7 +144,6 @@ const MarksEntry = () => {
       }
     } catch (err) {
       console.error('Error filtering subjects by class:', err);
-      // Final fallback: show all subjects
       setFilteredSubjects(subjects);
     } finally {
       setSubjectLoading(false);
@@ -170,7 +161,6 @@ const MarksEntry = () => {
         term: selectedTerm 
       });
       
-      // First, get students enrolled in the selected subject for the current academic year
       const currentYear = new Date().getFullYear();
       const subjectStudentsRes = await subjectApi.getClassStudents(selectedClass, currentYear);
       
@@ -180,7 +170,6 @@ const MarksEntry = () => {
         throw new Error(subjectStudentsRes.error || 'Failed to load students enrolled in this subject');
       }
       
-      // Filter students who are enrolled in the selected subject
       const allStudents = subjectStudentsRes.data?.students || [];
       const enrolledStudents = allStudents.filter(student => 
         student.subjects && student.subjects.some(subject => 
@@ -200,7 +189,6 @@ const MarksEntry = () => {
       
       setStudents(enrolledStudents);
 
-      // Load existing marks for this combination
       const marksRes = await marksApi.getMarks({
         class: selectedClass,
         subject_id: selectedSubject,
@@ -212,14 +200,16 @@ const MarksEntry = () => {
       const existingMarks = marksRes.data?.marks || [];
       console.log(`Found ${existingMarks.length} existing marks`);
 
-      // Initialize marks data
       const initialMarks = {};
       const originalMarksData = {};
       
       enrolledStudents.forEach(student => {
         const existingMark = existingMarks.find(m => m.student_id === student.id);
-        initialMarks[student.id] = existingMark ? existingMark.marks.toString() : '';
-        originalMarksData[student.id] = existingMark ? existingMark.marks.toString() : '';
+        // Display as AB if null/absent, otherwise display as integer
+        const displayValue = existingMark ? 
+          (existingMark.marks === null ? 'AB' : Math.round(existingMark.marks).toString()) : '';
+        initialMarks[student.id] = displayValue;
+        originalMarksData[student.id] = displayValue;
       });
 
       setMarksData(initialMarks);
@@ -238,13 +228,89 @@ const MarksEntry = () => {
     }
   };
 
+  // Updated validation function for marks input
+  const validateMarksInput = (input) => {
+    if (input === '') return true; // Allow empty
+    
+    const upperInput = input.toUpperCase().trim();
+    
+    // Allow AB only
+    if (upperInput === 'AB') return true;
+    
+    // Allow whole numbers between 0-100
+    const num = parseInt(input);
+    if (!isNaN(num) && num.toString() === input && num >= 0 && num <= 100) {
+      return true;
+    }
+    
+    return false;
+  };
+
   const handleMarksChange = (studentId, marks) => {
-    // Validate marks (0-100)
-    const numericValue = parseFloat(marks);
-    if (marks === '' || (numericValue >= 0 && numericValue <= 100)) {
-      setMarksData(prev => ({ ...prev, [studentId]: marks }));
+    const input = marks.toString().trim();
+    
+    // Allow temporary input during typing (for better UX)
+    if (input === '' || validateMarksInput(input)) {
+      setMarksData(prev => ({ ...prev, [studentId]: input }));
+    } else {
+      // For invalid inputs, check if it's a partial AB entry
+      const upperInput = input.toUpperCase();
+      if ('AB'.startsWith(upperInput) && upperInput.length <= 2) {
+        setMarksData(prev => ({ ...prev, [studentId]: upperInput }));
+      }
+      // Otherwise, don't update the state (reject invalid input)
     }
   };
+
+  const handleInputKeyDown = (e, studentId) => {
+    const { key, target } = e;
+    const currentValue = target.value;
+
+    // Allow navigation and editing keys
+    if (['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(key)) {
+      return;
+    }
+
+    if (key === 'Enter') {
+      e.preventDefault();
+      // Find all input elements for marks in DOM order
+      const inputs = Array.from(document.querySelectorAll('input[type="text"]')).filter(input =>
+        input.placeholder === '0-100 or AB' && !input.disabled
+      );
+      const currentIndex = inputs.indexOf(target);
+      if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+        inputs[currentIndex + 1].focus();
+        inputs[currentIndex + 1].select();
+      }
+      return;
+    }
+
+    // For AB input
+    if (key.toLowerCase() === 'a' || key.toLowerCase() === 'b') {
+      const upperKey = key.toUpperCase();
+      if (currentValue === '' && upperKey === 'A') {
+        return; // Allow A as first character
+      }
+      if (currentValue.toUpperCase() === 'A' && upperKey === 'B') {
+        return; // Allow B after A
+      }
+      e.preventDefault(); // Block other A/B combinations
+      return;
+    }
+
+    // For numeric input
+    if (/^\d$/.test(key)) {
+      const newValue = currentValue + key;
+      const num = parseInt(newValue);
+      if (currentValue === '' || (num >= 0 && num <= 100)) {
+        return; // Allow valid numbers
+      }
+    }
+
+    // Block all other keys
+    e.preventDefault();
+  };
+
 
   const handleSaveMarks = async () => {
     try {
@@ -257,7 +323,7 @@ const MarksEntry = () => {
         .map(([studentId, marks]) => ({
           student_id: parseInt(studentId),
           subject_id: parseInt(selectedSubject),
-          marks: parseFloat(marks)
+          marks: marks.toUpperCase() === 'AB' ? 'AB' : parseInt(marks)
         }));
 
       if (marksToSave.length === 0) {
@@ -271,7 +337,6 @@ const MarksEntry = () => {
         sampleMark: marksToSave[0]
       });
 
-      // FIXED: Use the correct data structure for bulk marks entry
       const response = await marksApi.bulkEnterMarks({
         marksData: marksToSave,
         term_id: parseInt(selectedTerm)
@@ -283,7 +348,6 @@ const MarksEntry = () => {
         throw new Error(response.error || 'Failed to save marks');
       }
 
-      // Update original marks after successful save
       const newOriginalMarks = { ...originalMarks };
       marksToSave.forEach(({ student_id, marks }) => {
         newOriginalMarks[student_id] = marks.toString();
@@ -325,7 +389,9 @@ const MarksEntry = () => {
 
   const getGrade = (marks) => {
     if (marks === '' || marks === null) return '-';
-    const numericMarks = parseFloat(marks);
+    if (typeof marks === 'string' && marks.toUpperCase() === 'AB') return 'AB';
+    const numericMarks = parseInt(marks);
+    if (isNaN(numericMarks)) return '-';
     if (numericMarks >= 75) return 'A';
     if (numericMarks >= 65) return 'B';
     if (numericMarks >= 50) return 'C';
@@ -536,6 +602,14 @@ const MarksEntry = () => {
                   Set All A
                 </button>
                 <button 
+                  onClick={() => handleSelectAllMarks('AB')}
+                  disabled={saving}
+                  className="bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                  title="Set all marks to Absent (AB)"
+                >
+                  Set All AB
+                </button>
+                <button 
                   onClick={handleClearAllMarks}
                   disabled={saving}
                   className="bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
@@ -567,7 +641,7 @@ const MarksEntry = () => {
                     Student Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Marks (0-100)
+                    Marks (0-100 or 'AB')
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Grade
@@ -592,18 +666,16 @@ const MarksEntry = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.5"
+                          type="text"
                           value={marksData[student.id] || ''}
                           onChange={(e) => handleMarksChange(student.id, e.target.value)}
+                          onKeyDown={(e) => handleInputKeyDown(e, student.id)}
                           disabled={saving}
-                          className={`w-24 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors ${
+                          className={`w-24 px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors uppercase ${
                             hasChanged ? 'border-yellow-400 bg-yellow-50' : 
                             isEmpty ? 'border-gray-300' : 'border-green-300 bg-green-50'
                           }`}
-                          placeholder="0-100"
+                          placeholder="0-100 or AB"
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -613,6 +685,7 @@ const MarksEntry = () => {
                           getGrade(marksData[student.id]) === 'C' ? 'bg-yellow-100 text-yellow-800' :
                           getGrade(marksData[student.id]) === 'S' ? 'bg-orange-100 text-orange-800' :
                           getGrade(marksData[student.id]) === 'F' ? 'bg-red-100 text-red-800' :
+                          getGrade(marksData[student.id]) === 'AB' ? 'bg-purple-100 text-purple-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {getGrade(marksData[student.id])}
