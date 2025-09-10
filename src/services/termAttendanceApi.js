@@ -124,23 +124,8 @@ export const termAttendanceApi = {
   getTermAttendance: async (filters) => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
-      }
-
-      // Build query parameters
-      const params = new URLSearchParams();
-      if (filters.term_id) params.append('term_id', filters.term_id);
-      if (filters.class) params.append('class', filters.class);
-      if (filters.academic_year) params.append('academic_year', filters.academic_year);
-
-      const queryString = params.toString();
-      const url = `/api/term-attendance${queryString ? `?${queryString}` : ''}`;
-
-      const response = await apiService.request(url, {
-        headers: apiService.getAuthHeaders(token)
-      });
-
+      const response = await apiService.getTermAttendance(token, filters);
+      
       if (response.success) {
         let attendanceData = response.data;
         
@@ -168,9 +153,9 @@ export const termAttendanceApi = {
 
   // Save term attendance (bulk)
   saveTermAttendance: async (attendanceRecords) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await apiService.saveTermAttendance(token, attendanceRecords);
+  try {
+    const token = localStorage.getItem('token');
+    const response = await apiService.createTermAttendance(token, attendanceRecords);
       
       if (response.success) {
         return { 
@@ -194,7 +179,7 @@ export const termAttendanceApi = {
   updateTermAttendance: async (recordId, attendanceData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await apiService.request(`/api/term-attendance/${recordId}`, {
+      const response = await apiService.request(`${apiService.baseURL}/api/term-attendance/${recordId}`, {
         method: 'PUT',
         headers: apiService.getAuthHeaders(token),
         body: JSON.stringify(attendanceData)
@@ -215,7 +200,7 @@ export const termAttendanceApi = {
   deleteTermAttendance: async (recordId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await apiService.request(`/api/term-attendance/${recordId}`, {
+      const response = await apiService.request(`${apiService.baseURL}/api/term-attendance/${recordId}`, {
         method: 'DELETE',
         headers: apiService.getAuthHeaders(token)
       });
