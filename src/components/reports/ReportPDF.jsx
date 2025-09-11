@@ -1,4 +1,4 @@
-// src/components/reports/ReportPDF.jsx - UPDATED VERSION WITH "AB" FIX
+// src/components/reports/ReportPDF.jsx - UPDATED VERSION WITH NEW GRADING
 import jsPDF from 'jspdf';
 
 export const ReportPDF = {
@@ -29,9 +29,9 @@ export const ReportPDF = {
     // ----- GRADE COUNTING FUNCTION -----
     const countGradesBySubject = () => {
       const gradeRanges = [
-        { name: 'F > 00 - 35', min: 0, max: 35 },
-        { name: 'S > 40 - 54', min: 40, max: 54 },
-        { name: 'C > 55 - 64', min: 55, max: 64 },
+        { name: 'F > 00 - 34', min: 0, max: 34 },
+        { name: 'S > 35 - 50', min: 35, max: 50 },
+        { name: 'C > 51 - 64', min: 51, max: 64 },
         { name: 'B > 65 - 74', min: 65, max: 74 },
         { name: 'A > 75 - 100', min: 75, max: 100 }
       ];
@@ -45,9 +45,9 @@ export const ReportPDF = {
           gradeCounts[subject.id] = {
             subjectName: subject.name,
             grades: {
-              'F > 00 - 35': 0,
-              'S > 40 - 54': 0,
-              'C > 55 - 64': 0,
+              'F > 00 - 34': 0,
+              'S > 35 - 50': 0,
+              'C > 51 - 64': 0,
               'B > 65 - 74': 0,
               'A > 75 - 100': 0
             }
@@ -57,10 +57,9 @@ export const ReportPDF = {
       
       students.forEach(student => {
         student.marks.forEach(mark => {
-          // Only count if marks are not null/undefined/empty string
           if (mark.marks !== null && mark.marks !== undefined && mark.marks !== '') {
             const subject = subjects.find(s => s.id === mark.subject_id);
-            if (subject && gradeCounts[subject.id]) { // Ensure subject is in desired list
+            if (subject && gradeCounts[subject.id]) {
               for (const range of gradeRanges) {
                 if (mark.marks >= range.min && mark.marks <= range.max) {
                   gradeCounts[subject.id].grades[range.name]++;
@@ -78,18 +77,17 @@ export const ReportPDF = {
     // ----- TABLE HEADER -----
     const drawTableHeader = (startY, isGradeTable = false) => {
       const tableWidth = pageWidth - (margin * 2);
-      const noColWidth = 6; // For 'No' column
-      const nameColWidth = 40; // For 'Name' column
+      const noColWidth = 6;
+      const nameColWidth = 40;
       const totalColWidth = 10;
       const avgColWidth = 10;
-      const rankColWidth = 8; // Added Rank column
+      const rankColWidth = 8;
       const absentColWidth = 12;
-      const percentageColWidth = 12; // For Attendance Percentage
+      const percentageColWidth = 12;
 
       const subjectsToDisplay = desiredSubjectOrder.map(name => subjects.find(s => s.name === name)).filter(Boolean);
       const subjectCols = subjectsToDisplay.length;
 
-      // Calculate remaining width for subject columns
       const fixedColumnsWidth = noColWidth + nameColWidth + 
                                 (isGradeTable ? 0 : (totalColWidth + avgColWidth + rankColWidth + absentColWidth + percentageColWidth));
       const remainingWidth = tableWidth - fixedColumnsWidth;
@@ -109,7 +107,7 @@ export const ReportPDF = {
       doc.setTextColor(0, 0, 0);
 
       if (isGradeTable) {
-        const gradeColWidth = noColWidth + nameColWidth; // Combine for 'Grade' header
+        const gradeColWidth = noColWidth + nameColWidth;
         doc.text('Grade', x + gradeColWidth / 2, y + 10, { align: 'center' });
         x += gradeColWidth;
         doc.line(x, y, x, y + headerHeight);
@@ -132,7 +130,6 @@ export const ReportPDF = {
       });
 
       if (!isGradeTable) {
-        // Conditional header for Total/Z-Score
         if (filters.rankingMethod === 'zscore') {
           doc.text('Z-Score', x + totalColWidth/2, y + 28, { angle: 90});
         } else {
@@ -145,7 +142,7 @@ export const ReportPDF = {
         doc.line(x, y, x, y + headerHeight);
         x += avgColWidth;
 
-        doc.text('Rank', x + rankColWidth/2, y + 28, { angle: 90}); // Rank column header
+        doc.text('Rank', x + rankColWidth/2, y + 28, { angle: 90});
         doc.line(x, y, x, y + headerHeight);
         x += rankColWidth;
 
@@ -153,7 +150,7 @@ export const ReportPDF = {
         doc.line(x, y, x, y + headerHeight);
         x += absentColWidth;
 
-        doc.text('Percentage', x + percentageColWidth/2, y + 28, { angle: 90 }); // Attendance Percentage
+        doc.text('Percentage', x + percentageColWidth/2, y + 28, { angle: 90 });
         doc.line(x, y, x, y + headerHeight);
         x += percentageColWidth;
       }
@@ -201,7 +198,7 @@ export const ReportPDF = {
         doc.rect(margin, y, tableWidth, rowHeight);
 
         let x = margin;
-        doc.text(String(index + 1), x + noColWidth/2, y + 4, { align: 'center' }); // Sequential 'No'
+        doc.text(String(index + 1), x + noColWidth/2, y + 4, { align: 'center' });
         x += noColWidth;
 
         doc.line(x, y, x, y + rowHeight);
@@ -212,7 +209,6 @@ export const ReportPDF = {
 
         subjectsToDisplay.forEach(subject => {
           const subjectMark = student.marks.find(m => m.subject_id === subject.id);
-          // Handle null/undefined marks and empty strings, and show 'AB' if status is 'absent'
           let markText = '';
           if (subjectMark) {
             if (subjectMark.marks === null && subjectMark.status === 'absent') {
@@ -226,7 +222,6 @@ export const ReportPDF = {
           x += subjectColWidth;
         });
 
-        // Conditionally display Total Marks or Z-Score
         if (filters.rankingMethod === 'zscore') {
           const zScoreText = student.zScore ? student.zScore.toFixed(2) : '0.00';
           doc.text(zScoreText, x + totalColWidth / 2, y + 4, { align: 'center' });
@@ -236,7 +231,6 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += totalColWidth;
 
-        // Calculate average for non-common subjects with valid marks
         const nonCommonMarks = student.marks.filter(m => {
           const subject = subjects.find(s => s.id === m.subject_id);
           return subject && subject.stream !== 'Common' && m.marks !== null && m.marks !== undefined && m.marks !== '';
@@ -249,15 +243,15 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += avgColWidth;
 
-        doc.text(String(student.rank), x + rankColWidth/2, y + 4, { align: 'center' }); // Display Rank
+        doc.text(String(student.rank), x + rankColWidth/2, y + 4, { align: 'center' });
         doc.line(x, y, x, y + rowHeight);
         x += rankColWidth;
 
-        doc.text(String(student.absent_days || 0), x + absentColWidth/2, y + 4, { align: 'center' }); // Absent Days
+        doc.text(String(student.absent_days || 0), x + absentColWidth/2, y + 4, { align: 'center' });
         doc.line(x, y, x, y + rowHeight);
         x += absentColWidth;
 
-        doc.text(student.attendance_percentage ? student.attendance_percentage.toFixed(0) : '0', x + percentageColWidth/2, y + 4, { align: 'center' }); // Attendance Percentage
+        doc.text(student.attendance_percentage ? student.attendance_percentage.toFixed(0) : '0', x + percentageColWidth/2, y + 4, { align: 'center' });
         doc.line(x, y, x, y + rowHeight);
         x += percentageColWidth;
 
@@ -271,18 +265,18 @@ export const ReportPDF = {
     const drawGradeCountTable = (startY) => {
       const gradeCounts = countGradesBySubject();
       const gradeRanges = [
-        'F > 00 - 35',
-        'S > 40 - 54', 
-        'C > 55 - 64',
+        'F > 00 - 34',
+        'S > 35 - 50', 
+        'C > 51 - 64',
         'B > 65 - 74',
         'A > 75 - 100'
       ];
 
       const tableWidth = pageWidth - (margin * 2);
       const { subjectColWidth, noColWidth, nameColWidth } = drawTableHeader(startY, true);
-      const gradeColWidth = noColWidth + nameColWidth; // Combined width for 'Grade' header
+      const gradeColWidth = noColWidth + nameColWidth;
       const rowHeight = 5;
-      let y = startY + 30; // push below header
+      let y = startY + 30;
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
@@ -310,7 +304,7 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
 
         subjectsToDisplay.forEach(subject => {
-          const count = gradeCounts[subject.id]?.grades[gradeRange] || 0; // Use optional chaining
+          const count = gradeCounts[subject.id]?.grades[gradeRange] || 0;
           doc.text(count.toString(), x + subjectColWidth/2, y + 4, { align: 'center' });
           doc.line(x, y, x, y + rowHeight);
           x += subjectColWidth;
@@ -319,7 +313,6 @@ export const ReportPDF = {
         y += rowHeight;
       });
 
-      // Total row
       if (y + rowHeight > pageHeight - margin - 15) {
         doc.addPage();
         ({ subjectColWidth, noColWidth, nameColWidth } = drawTableHeader(margin, true));
