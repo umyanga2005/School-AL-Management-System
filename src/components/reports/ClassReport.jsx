@@ -533,29 +533,18 @@ useEffect(() => {
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
-        // Calculate class average based on the new definition
+        // Calculate class average = (all students' marks) / (number of subjects in the selected class)
         let calculatedClassAverage = 0;
         if (filters.reportType === 'class' && studentsData.length > 0 && subjectsData.length > 0) {
-          let totalMarksSum = 0;
-          let totalSubjectsCount = 0;
-
-          // Iterate through students and their marks
-          studentsData.forEach(student => {
-            // Filter for non-common subjects only for the average calculation
-            const nonCommonSubjects = student.marks.filter(m => 
-              subjectsData.find(s => s.id === m.subject_id)?.stream !== 'Common'
-            );
-            
-            // Sum marks, treating null (AB) as 0
-            totalMarksSum += nonCommonSubjects.reduce((sum, m) => sum + (m.marks !== null ? m.marks : 0), 0);
-            
-            // Count the number of non-common subjects for this student (which should be 3)
-            totalSubjectsCount += nonCommonSubjects.length;
-          });
-          
-          // Calculate overall class average based on non-common subjects
-          // Divide by the total number of non-common subjects across all students
-          calculatedClassAverage = totalSubjectsCount > 0 ? (totalMarksSum / totalSubjectsCount) : 0;
+          // Sum all marks from all students (treat null/AB as 0)
+          const totalMarksSum = studentsData.reduce((studentSum, student) => {
+            return studentSum + student.marks.reduce((sum, m) => sum + (m.marks !== null ? m.marks : 0), 0);
+          }, 0);
+        
+          // Number of subjects in the selected class
+          const subjectCount = subjectsData.length;
+        
+          calculatedClassAverage = subjectCount > 0 ? (totalMarksSum / subjectCount) : 0;
         }
 
         setReportData(studentsData);
