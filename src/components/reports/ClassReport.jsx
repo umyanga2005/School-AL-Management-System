@@ -533,21 +533,23 @@ useEffect(() => {
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
-        // Calculate class average based on new definition: total marks across all students / number of subjects in the class
+        // Calculate class average like Excel =AVERAGE(E2:AC39)
         let calculatedClassAverage = 0;
         if (filters.reportType === 'class' && studentsData.length > 0 && subjectsData.length > 0) {
           let totalMarksSum = 0;
+          let totalMarksCount = 0;
         
-          // Sum all students' marks for all subjects (treat null/AB as 0)
+          // Go through all students and all subjects
           studentsData.forEach(student => {
-            totalMarksSum += student.marks.reduce((sum, m) => sum + (m.marks !== null ? m.marks : 0), 0);
+            student.marks.forEach(m => {
+              totalMarksSum += (m.marks !== null ? m.marks : 0);
+              totalMarksCount++;
+            });
           });
         
-          // Denominator is number of subjects in the selected class
-          const totalSubjectsCount = subjectsData.length;
-        
-          calculatedClassAverage = totalSubjectsCount > 0 ? (totalMarksSum / totalSubjectsCount) : 0;
+          calculatedClassAverage = totalMarksCount > 0 ? (totalMarksSum / totalMarksCount) : 0;
         }
+
 
         setReportData(studentsData);
         setFilteredReportData(studentsData);
