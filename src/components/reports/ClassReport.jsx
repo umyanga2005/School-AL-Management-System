@@ -533,18 +533,20 @@ useEffect(() => {
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
-        // Calculate class average = (all students' marks) / (number of subjects in the selected class)
+        // Calculate class average based on new definition: total marks across all students / number of subjects in the class
         let calculatedClassAverage = 0;
         if (filters.reportType === 'class' && studentsData.length > 0 && subjectsData.length > 0) {
-          // Sum all marks from all students (treat null/AB as 0)
-          const totalMarksSum = studentsData.reduce((studentSum, student) => {
-            return studentSum + student.marks.reduce((sum, m) => sum + (m.marks !== null ? m.marks : 0), 0);
-          }, 0);
+          let totalMarksSum = 0;
         
-          // Number of subjects in the selected class
-          const subjectCount = subjectsData.length;
+          // Sum all students' marks for all subjects (treat null/AB as 0)
+          studentsData.forEach(student => {
+            totalMarksSum += student.marks.reduce((sum, m) => sum + (m.marks !== null ? m.marks : 0), 0);
+          });
         
-          calculatedClassAverage = subjectCount > 0 ? (totalMarksSum / subjectCount) : 0;
+          // Denominator is number of subjects in the selected class
+          const totalSubjectsCount = subjectsData.length;
+        
+          calculatedClassAverage = totalSubjectsCount > 0 ? (totalMarksSum / totalSubjectsCount) : 0;
         }
 
         setReportData(studentsData);
