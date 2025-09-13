@@ -30,13 +30,10 @@ export const ReportPDF = {
     const countGradesBySubject = () => {
       const gradeRanges = [
         { name: 'F > 00 - 34', min: 0, max: 34 },
-<<<<<<< HEAD
         { name: 'S > 35 - 50', min: 35, max: 50 },
         { name: 'C > 51 - 64', min: 51, max: 64 },
-=======
         { name: 'S > 35 - 49', min: 35, max: 49 },
         { name: 'C > 50 - 64', min: 50, max: 64 },
->>>>>>> 4a3bc7d (Student person Report Donwload Updated)
         { name: 'B > 65 - 74', min: 65, max: 74 },
         { name: 'A > 75 - 100', min: 75, max: 100 }
       ];
@@ -51,13 +48,10 @@ export const ReportPDF = {
             subjectName: subject.name,
             grades: {
               'F > 00 - 34': 0,
-<<<<<<< HEAD
               'S > 35 - 50': 0,
               'C > 51 - 64': 0,
-=======
               'S > 35 - 49': 0,
               'C > 50 - 64': 0,
->>>>>>> 4a3bc7d (Student person Report Donwload Updated)
               'B > 65 - 74': 0,
               'A > 75 - 100': 0
             }
@@ -276,13 +270,10 @@ export const ReportPDF = {
       const gradeCounts = countGradesBySubject();
       const gradeRanges = [
         'F > 00 - 34',
-<<<<<<< HEAD
         'S > 35 - 50', 
         'C > 51 - 64',
-=======
         'S > 35 - 49', 
         'C > 50 - 64',
->>>>>>> 4a3bc7d (Student person Report Donwload Updated)
         'B > 65 - 74',
         'A > 75 - 100'
       ];
