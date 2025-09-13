@@ -533,11 +533,8 @@ useEffect(() => {
         
         studentsData = applyRanking(studentsData, filters.rankingMethod, subjectsData);
         
-<<<<<<< HEAD
-        // Calculate class average like Excel =AVERAGE(E2:AC39)
-=======
+
         // Calculate class Average
->>>>>>> 4a3bc7d (Student person Report Donwload Updated)
         let calculatedClassAverage = 0;
         if (filters.reportType === 'class' && studentsData.length > 0 && subjectsData.length > 0) {
           let totalMarksSum = 0;
