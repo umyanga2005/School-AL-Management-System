@@ -7,6 +7,7 @@ import { marksApi } from './marksApi';
 import { reportApi } from './reportApi';
 import { savedReportsApi } from './savedReportsApi'; 
 import { dashboardApi } from './dashboardApi';
+import { studentAttendanceApi } from './studentAttendanceApi';
 
 // Create classApi if it doesn't exist
 const classApi = {
@@ -102,5 +103,6 @@ export {
   reportApi,
   savedReportsApi,
   dashboardApi,
-  termAttendanceApi  // NEW EXPORT
+  termAttendanceApi,  // NEW EXPORT
+  studentAttendanceApi
 };

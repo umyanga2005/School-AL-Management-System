@@ -83,5 +83,27 @@ export const marksApi = {
   applyMarkTemplate: (templateId, applicationData) => {
     const token = localStorage.getToken('token');
     return apiService.applyMarkTemplate(token, templateId, applicationData);
+  },
+
+  getStudentTermMarks: async (studentId, termId) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const response = await apiService.getStudentTermMarks(token, studentId, termId);
+
+      if (!response.success) {
+        console.error('Failed to get student term marks:', response.error);
+        throw new Error(response.error || 'Failed to get student term marks');
+      }
+
+      return response;
+    } catch (error) {
+      console.error('MarksApi: Error in getStudentTermMarks:', error);
+      throw error;
+    }
   }
+
 };

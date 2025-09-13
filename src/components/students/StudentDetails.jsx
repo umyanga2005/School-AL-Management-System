@@ -1,8 +1,9 @@
 // src/components/students/StudentDetails.jsx
 import React, { useState, useEffect } from 'react';
-import { studentApi } from '../../services/studentApi';
+import { studentApi, termApi, marksApi} from '../../services';
 import StudentSubjects from './StudentSubjects';
 import StudentForm from './StudentForm';
+import AcademicRecords from './AcademicRecords';
 
 const StudentDetails = ({ student, onClose, onUpdate }) => {
   const [activeTab, setActiveTab] = useState('details');
@@ -10,10 +11,58 @@ const StudentDetails = ({ student, onClose, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [academicRecords, setAcademicRecords] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedTerm, setSelectedTerm] = useState(null);
+  const [reportType, setReportType] = useState('single');
 
   useEffect(() => {
     setStudentData(student);
-  }, [student]);
+    if (activeTab === 'academic') {
+      loadAcademicRecords();
+    }
+  }, [student, activeTab]);
+
+  const loadAcademicRecords = async () => {
+    try {
+      setLoading(true);
+      
+      // Get all terms to check which ones the student has marks for
+      const termsResponse = await termApi.getTerms();
+      
+      if (termsResponse.success) {
+        const terms = termsResponse.data.terms || termsResponse.data || [];
+        
+        // Check each term for student marks
+        const recordsWithMarks = await Promise.all(
+          terms.map(async (term) => {
+            const marksResponse = await marksApi.getStudentTermMarks(student.id, term.id);
+            return {
+              term,
+              hasMarks: marksResponse.success && marksResponse.data && 
+                       marksResponse.data.marks && marksResponse.data.marks.length > 0,
+              marksData: marksResponse.success ? marksResponse.data : null
+            };
+          })
+        );
+        
+        // Filter to only terms with marks
+        const validRecords = recordsWithMarks.filter(record => record.hasMarks);
+        setAcademicRecords(validRecords);
+      }
+    } catch (err) {
+      console.error('Error loading academic records:', err);
+      setError('Failed to load academic records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = (term = null, type = 'single') => {
+    setSelectedTerm(term);
+    setReportType(type);
+    setShowReportModal(true);
+  };
 
   const handleUpdate = async (updatedData) => {
     try {
@@ -184,12 +233,49 @@ const StudentDetails = ({ student, onClose, onUpdate }) => {
           )}
 
           {activeTab === 'academic' && (
-            <div className="bg-gray-50 p-6 rounded-lg text-center">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">Academic Records</h3>
-              <p className="mt-1 text-sm text-gray-500">Academic records will be displayed here once marks are entered.</p>
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h4 className="text-lg font-medium text-gray-900">Academic Records</h4>
+
+              </div>
+
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading academic records...</p>
+                </div>
+              ) : academicRecords.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No Academic Records Found</h3>
+                  <p className="mt-1 text-sm text-gray-500">No exam marks have been recorded for this student yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {academicRecords.map((record, index) => (
+                    <div key={record.term.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h5 className="font-medium text-gray-900">
+                            {record.term.term_name} - {record.term.exam_year}
+                          </h5>
+                          <p className="text-sm text-gray-500">
+                            {record.marksData?.marks?.length || 0} subjects with marks
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleGenerateReport(record.term, 'single')}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-sm font-medium"
+                        >
+                          Download Report
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -215,6 +301,18 @@ const StudentDetails = ({ student, onClose, onUpdate }) => {
               initialData={studentData}
               onSubmit={handleUpdate}
               onCancel={() => setIsEditing(false)}
+            />
+          )}
+
+          {showReportModal && (
+            <AcademicRecords
+              student={studentData}
+              selectedTerm={selectedTerm}
+              reportType={reportType}
+              onClose={() => {
+                setShowReportModal(false);
+                setSelectedTerm(null);
+              }}
             />
           )}
         </div>

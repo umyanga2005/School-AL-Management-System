@@ -12,6 +12,7 @@ create table public.attendance (
   constraint fk_teacher foreign KEY (teacher_id) references users (id) on delete CASCADE
 ) TABLESPACE pg_default;
 
+
 create table public.class_promotions (
   id serial not null,
   student_id integer not null,
@@ -28,7 +29,7 @@ create table public.marks (
   student_id integer not null,
   subject_id integer not null,
   term_id integer not null,
-  marks numeric(5, 2) not null,
+  marks numeric(5, 2) null,
   teacher_id integer not null,
   entry_date timestamp without time zone null default now(),
   status character varying(20) null default 'active'::character varying,
@@ -37,36 +38,81 @@ create table public.marks (
   entered_by integer null,
   constraint marks_pkey primary key (id),
   constraint marks_student_id_subject_id_term_id_key unique (student_id, subject_id, term_id),
-  constraint marks_student_id_fkey foreign KEY (student_id) references students (id),
-  constraint marks_entered_by_fkey foreign KEY (entered_by) references users (id),
   constraint marks_teacher_id_fkey foreign KEY (teacher_id) references users (id),
   constraint marks_subject_id_fkey foreign KEY (subject_id) references subjects (id),
+  constraint marks_entered_by_fkey foreign KEY (entered_by) references users (id),
+  constraint marks_student_id_fkey foreign KEY (student_id) references students (id),
+  constraint marks_numeric_or_null_check check (
+    (
+      (
+        (marks >= (0)::numeric)
+        and (marks <= (100)::numeric)
+      )
+      or (marks is null)
+    )
+  ),
   constraint marks_marks_check check (
     (
-      (marks >= (0)::numeric)
-      and (marks <= (100)::numeric)
+      (
+        (marks >= (0)::numeric)
+        and (marks <= (100)::numeric)
+      )
+      or (
+        (marks is null)
+        and ((status)::text = 'absent'::text)
+      )
+      or (
+        (marks is not null)
+        and ((status)::text = 'active'::text)
+      )
     )
   )
 ) TABLESPACE pg_default;
 
-create table public.saved_reports (
+create table public.marks (
   id serial not null,
+  student_id integer not null,
+  subject_id integer not null,
   term_id integer not null,
-  class_name character varying(255) null,
-  academic_year integer not null,
-  ranking_method character varying(50) not null,
-  generated_at timestamp without time zone not null default CURRENT_TIMESTAMP,
-  report_data jsonb not null,
-  created_by integer not null,
-  created_at timestamp without time zone not null default CURRENT_TIMESTAMP,
-  constraint saved_reports_pkey primary key (id),
-  constraint saved_reports_created_by_fkey foreign KEY (created_by) references users (id),
-  constraint saved_reports_term_id_fkey foreign KEY (term_id) references terms (id)
+  marks numeric(5, 2) null,
+  teacher_id integer not null,
+  entry_date timestamp without time zone null default now(),
+  status character varying(20) null default 'active'::character varying,
+  created_at timestamp without time zone null default now(),
+  updated_at timestamp without time zone null default now(),
+  entered_by integer null,
+  constraint marks_pkey primary key (id),
+  constraint marks_student_id_subject_id_term_id_key unique (student_id, subject_id, term_id),
+  constraint marks_teacher_id_fkey foreign KEY (teacher_id) references users (id),
+  constraint marks_subject_id_fkey foreign KEY (subject_id) references subjects (id),
+  constraint marks_entered_by_fkey foreign KEY (entered_by) references users (id),
+  constraint marks_student_id_fkey foreign KEY (student_id) references students (id),
+  constraint marks_numeric_or_null_check check (
+    (
+      (
+        (marks >= (0)::numeric)
+        and (marks <= (100)::numeric)
+      )
+      or (marks is null)
+    )
+  ),
+  constraint marks_marks_check check (
+    (
+      (
+        (marks >= (0)::numeric)
+        and (marks <= (100)::numeric)
+      )
+      or (
+        (marks is null)
+        and ((status)::text = 'absent'::text)
+      )
+      or (
+        (marks is not null)
+        and ((status)::text = 'active'::text)
+      )
+    )
+  )
 ) TABLESPACE pg_default;
-
-create index IF not exists idx_saved_reports_created_by on public.saved_reports using btree (created_by) TABLESPACE pg_default;
-
-create index IF not exists idx_saved_reports_academic_year on public.saved_reports using btree (academic_year) TABLESPACE pg_default;
 
 create table public.student_subjects (
   id serial not null,
@@ -163,15 +209,28 @@ create table public.subjects (
   constraint subjects_subject_code_key unique (subject_code)
 ) TABLESPACE pg_default;
 
-create table public.subjects (
+create table public.terms (
   id serial not null,
-  subject_code character varying(20) not null,
-  subject_name character varying(255) not null,
-  stream character varying(50) not null,
-  description text null,
-  status character varying(20) null default 'active'::character varying,
+  term_number integer not null,
+  term_name character varying(100) not null,
+  exam_month integer not null,
+  exam_year integer not null,
+  status character varying(20) null default 'inactive'::character varying,
   created_at timestamp without time zone null default now(),
   updated_at timestamp without time zone null default now(),
-  constraint subjects_pkey primary key (id),
-  constraint subjects_subject_code_key unique (subject_code)
+  constraint terms_pkey primary key (id),
+  constraint terms_term_number_exam_year_key unique (term_number, exam_year),
+  constraint terms_exam_month_check check (
+    (
+      (exam_month >= 1)
+      and (exam_month <= 12)
+    )
+  ),
+  constraint terms_term_number_check check (
+    (
+      (term_number >= 1)
+      and (term_number <= 3)
+    )
+  )
 ) TABLESPACE pg_default;
+

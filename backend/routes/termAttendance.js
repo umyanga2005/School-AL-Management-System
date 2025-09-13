@@ -819,4 +819,40 @@ router.get("/export", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/student/:studentId/term/:termId", requireAuth, async (req, res) => {
+  const { studentId, termId } = req.params;
+
+  console.log("GET /api/term-attendance/student/:studentId/term/:termId - Params:", { studentId, termId });
+
+  try {
+    const sql = `
+      SELECT sta.*, s.name, s.index_number, s.current_class as class,
+             t.term_name, t.term_number, t.exam_year
+      FROM student_term_attendance sta
+      JOIN students s ON sta.student_id = s.id
+      LEFT JOIN terms t ON sta.term_id = t.id
+      WHERE sta.student_id = $1 AND sta.term_id = $2 AND s.status = 'active'
+      LIMIT 1
+    `;
+    
+    const params = [studentId, termId];
+
+    console.log("Executing specific term attendance SQL:", sql, "with params:", params);
+
+    const result = await db.execute(sql, params);
+
+    if (result.rows.length === 0) {
+      console.log(`No attendance record found for student ${studentId}, term ${termId}`);
+      return res.json({ success: true, data: null });
+    }
+
+    console.log(`Found attendance record for student ${studentId}, term ${termId}`);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error("Error fetching specific term attendance:", err);
+    res.status(500).json({ success: false, error: "Failed to fetch specific term attendance" });
+  }
+});
+
 module.exports = router;

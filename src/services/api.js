@@ -638,6 +638,19 @@ class ApiService {
       body: JSON.stringify(applicationData)
     });
   }
+
+  async getStudentTermMarks(token, studentId, termId) {
+    return this.request(`${this.endpoints.marks}/student/${studentId}/term/${termId}`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
+  
+  // Add this method to your api.js file in the ApiService class
+  async getStudentTermMarks(token, studentId, termId) {
+    return this.request(`${this.endpoints.marks}/student/${studentId}/term/${termId}`, {
+      headers: this.getAuthHeaders(token)
+    });
+  }
 }
 
 const apiService = new ApiService();

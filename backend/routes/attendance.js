@@ -381,4 +381,28 @@ router.get('/test', (req, res) => {
   });
 });
 
+// Get class attendance statistics
+router.get('/class-stats/:classId/:termId/:year', async (req, res) => {
+  try {
+    const { classId, termId, year } = req.params;
+    
+    const stats = await TermAttendance.findOne({
+      where: { 
+        class_id: classId,
+        term_id: termId,
+        academic_year: year
+      },
+      attributes: [
+        [sequelize.fn('AVG', sequelize.col('total_school_days')), 'avg_school_days'],
+        [sequelize.fn('AVG', sequelize.col('absent_days')), 'avg_absent_days']
+      ],
+      raw: true
+    });
+    
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

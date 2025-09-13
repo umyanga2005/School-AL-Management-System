@@ -208,4 +208,76 @@ router.post('/bulk', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/student/:studentId/term/:termId', requireAuth, async (req, res) => {
+  try {
+    const { studentId, termId } = req.params;
+    
+    const sql = `
+      SELECT m.*, s.subject_name, s.subject_code, s.stream
+      FROM marks m
+      JOIN subjects s ON m.subject_id = s.id
+      WHERE m.student_id = $1 AND m.term_id = $2
+      ORDER BY s.subject_name
+    `;
+    
+    const result = await db.execute(sql, [studentId, termId]);
+    
+    res.json({ success: true, marks: result.rows });
+  } catch (error) {
+    console.error('Error fetching student term marks:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch student term marks' });
+  }
+});
+
+// Get highest mark for a subject in a specific term and class
+router.get('/subject-highest/:termId/:classId/:subjectId', async (req, res) => {
+  try {
+    const { termId, classId, subjectId } = req.params;
+    
+    const highestMark = await Marks.findOne({
+      where: { 
+        term_id: termId,
+        class_id: classId,
+        subject_id: subjectId
+      },
+      attributes: [
+        [sequelize.fn('MAX', sequelize.col('marks')), 'highestMark']
+      ],
+      raw: true
+    });
+    
+    res.json({ success: true, data: { highestMark: highestMark.highestMark || 0 } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get class first average (without common subjects)
+router.get('/class-first-average/:termId/:classId', async (req, res) => {
+  try {
+    const { termId, classId } = req.params;
+    
+    const firstAverage = await Marks.findOne({
+      include: [{
+        model: Subject,
+        where: {
+          stream: { [Op.ne]: 'common' }
+        }
+      }],
+      where: { 
+        term_id: termId,
+        class_id: classId
+      },
+      attributes: [
+        [sequelize.fn('MAX', sequelize.col('marks')), 'firstAverage']
+      ],
+      raw: true
+    });
+    
+    res.json({ success: true, data: { firstAverage: firstAverage.firstAverage || 0 } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;
