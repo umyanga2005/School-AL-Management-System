@@ -23,7 +23,7 @@ export const ReportPDF = {
       doc.text(schoolName, pageWidth / 2, currentY + 5, { align: 'center' });
       doc.text(termInfo, pageWidth / 2, currentY + 12, { align: 'center' });
 
-      currentY += 25;
+      currentY += 22;
     };
 
     // ----- GRADE COUNTING FUNCTION -----
