@@ -8,6 +8,8 @@ const { db, initDb } = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const B_DEV_URL = process.env.B_DEV_URL || 'http://localhost:5000';
+
 
 // Middleware
 app.use(cors({
@@ -160,10 +162,10 @@ async function startServer() {
     await initDb(); // ✅ Fixed function name
     
     app.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`📊 API Health Check: http://localhost:${PORT}/api/health`);
-      console.log(`🔄 System Restart: http://localhost:${PORT}/api/system/restart`);
-      console.log(`ℹ️  System Info: http://localhost:${PORT}/api/system/info`);
+      console.log(`🚀 Server is running on port ${B_DEV_URL}`);
+      console.log(`📊 API Health Check: ${B_DEV_URL}/api/health`);
+      console.log(`🔄 System Restart: ${B_DEV_URL}/api/system/restart`);
+      console.log(`ℹ️  System Info: ${B_DEV_URL}/api/system/info`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('✅ Database initialized successfully');
     });

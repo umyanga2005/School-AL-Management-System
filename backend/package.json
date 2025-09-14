@@ -1,7 +1,7 @@
 {
-  "name": "attendance-backend",
+  "name": "scc-al-ams-backend",
   "version": "1.0.0",
-  "description": "Backend for Attendance Management System",
+  "description": "Backend for SCC AL ART Marks Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

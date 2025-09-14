@@ -279,7 +279,7 @@ export const ReportPDF = {
       ];
 
       const tableWidth = pageWidth - (margin * 2);
-      const { subjectColWidth, noColWidth, nameColWidth } = drawTableHeader(startY, true);
+      let { subjectColWidth, noColWidth, nameColWidth } = drawTableHeader(startY, true);
       const gradeColWidth = noColWidth + nameColWidth;
       const rowHeight = 5;
       let y = startY + 30;
