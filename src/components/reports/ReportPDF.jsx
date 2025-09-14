@@ -8,7 +8,7 @@ export const ReportPDF = {
     const doc = new jsPDF('landscape', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 10;
+    const margin = 8;
     let currentY = margin;
 
     // ----- HEADER -----
@@ -23,7 +23,7 @@ export const ReportPDF = {
       doc.text(schoolName, pageWidth / 2, currentY + 5, { align: 'center' });
       doc.text(termInfo, pageWidth / 2, currentY + 12, { align: 'center' });
 
-      currentY += 22;
+      currentY += 18;
     };
 
     // ----- GRADE COUNTING FUNCTION -----
