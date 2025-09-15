@@ -630,9 +630,7 @@ useEffect(() => {
 
       if (filters.rankingMethod === 'zscore') {
         // Apply -20 for Z-score if it's 0.0000
-        student.zScore !== undefined && student.zScore.toFixed(4) === '0.0000'
-          ? '-20.00'
-          : student.zScore.toFixed(2)
+        student.zScore !== undefined && student.zScore.toFixed(4) === '0.0000' ? '-20.00' : student.zScore.toFixed(2)
       }
       
       return studentRow;
