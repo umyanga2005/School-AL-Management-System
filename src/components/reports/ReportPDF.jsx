@@ -249,15 +249,21 @@ export const ReportPDF = {
         doc.line(x, y, x, y + rowHeight);
         x += totalColWidth;
 
+        // --- UPDATED: compute average as "sum(non-common marks treating null/'' as 0) / 3"
         const nonCommonMarks = student.marks.filter(m => {
           const subject = subjects.find(s => s.id === m.subject_id);
-          return subject && subject.stream !== 'Common' && m.marks !== null && m.marks !== undefined && m.marks !== '';
+          return subject && subject.stream !== 'Common';
         });
-        
-        const average = nonCommonMarks.length > 0
-          ? (nonCommonMarks.reduce((sum, m) => sum + m.marks, 0) / nonCommonMarks.length)
-          : 0;
-        doc.text(average.toFixed(0), x + avgColWidth/2, y + 4, { align: 'center' });
+
+        const totalNonCommon = nonCommonMarks.reduce((sum, m) => {
+          // treat null, undefined or empty-string as 0; otherwise coerce to Number
+          const markVal = (m.marks !== null && m.marks !== undefined && m.marks !== "") ? Number(m.marks) : 0;
+          return sum + markVal;
+        }, 0);
+
+        const average = totalNonCommon / 3; // fixed denominator to match ClassReport
+        doc.text(average.toFixed(2), x + avgColWidth/2, y + 4, { align: 'center' });
+                
         doc.line(x, y, x, y + rowHeight);
         x += avgColWidth;
 
