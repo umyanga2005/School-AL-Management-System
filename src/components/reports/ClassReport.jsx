@@ -342,21 +342,6 @@ useEffect(() => {
         
         return bAvg - aAvg;
       });
-<<<<<<< HEAD
-      } else if (rankingMethod === 'zscore') {
-        rankedStudents.forEach(student => {
-          const rawZ = calculateZScore(student, students, subjects);
-          // --- NEW: convert exact 0.0000 to -20 ---
-          student.zScore = (rawZ !== undefined && rawZ.toFixed(4) === '0.0000')
-            ? -20
-            : rawZ;
-        });
-      
-        // sort with the converted value
-        rankedStudents.sort((a, b) => b.zScore - a.zScore);
-      }
-    
-=======
     } else if (rankingMethod === 'zscore') {
       rankedStudents.forEach(student => {
         const rawZ = calculateZScore(student, students, subjects);
@@ -370,7 +355,6 @@ useEffect(() => {
       rankedStudents.sort((a, b) => b.zScore - a.zScore);
     }
 
->>>>>>> 87bb7cf (report, z-score and studen name updated)
     let currentRank = 0;
     let lastValue = -1;
     
@@ -646,14 +630,9 @@ useEffect(() => {
 
       if (filters.rankingMethod === 'zscore') {
         // Apply -20 for Z-score if it's 0.0000
-<<<<<<< HEAD
-        student.zScore !== undefined && student.zScore.toFixed(4) === '0.0000' ? '-20.00' : student.zScore.toFixed(2)
-=======
         studentRow['Z-Score'] = student.zScore !== undefined && student.zScore.toFixed(4) === '0.0000'
                                 ? '-20.00'
                                 : student.zScore.toFixed(2)
-
->>>>>>> 87bb7cf (report, z-score and studen name updated)
       }
       
       return studentRow;
