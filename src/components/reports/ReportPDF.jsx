@@ -227,7 +227,10 @@ export const ReportPDF = {
         });
 
         if (filters.rankingMethod === 'zscore') {
-          const zScoreText = student.zScore ? student.zScore.toFixed(2) : '0.00';
+          const zScoreText =
+            student.zScore !== undefined && student.zScore.toFixed(4) === '0.0000'
+              ? '-20.00'
+              : student.zScore.toFixed(2);
           doc.text(zScoreText, x + totalColWidth / 2, y + 4, { align: 'center' });
         } else {
           doc.text(student.totalMarks.toFixed(0), x + totalColWidth / 2, y + 4, { align: 'center' });
