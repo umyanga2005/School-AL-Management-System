@@ -342,13 +342,18 @@ useEffect(() => {
         
         return bAvg - aAvg;
       });
-    } else if (rankingMethod === 'zscore') {
-      rankedStudents.forEach(student => {
-        student.zScore = calculateZScore(student, students, subjects);
-      });
+      } else if (rankingMethod === 'zscore') {
+        rankedStudents.forEach(student => {
+          const rawZ = calculateZScore(student, students, subjects);
+          // --- NEW: convert exact 0.0000 to -20 ---
+          student.zScore = (rawZ !== undefined && rawZ.toFixed(4) === '0.0000')
+            ? -20
+            : rawZ;
+        });
       
-      rankedStudents.sort((a, b) => b.zScore - a.zScore);
-    }
+        // sort with the converted value
+        rankedStudents.sort((a, b) => b.zScore - a.zScore);
+      }
     
     let currentRank = 0;
     let lastValue = -1;
@@ -625,9 +630,9 @@ useEffect(() => {
 
       if (filters.rankingMethod === 'zscore') {
         // Apply -20 for Z-score if it's 0.0000
-        studentRow['Z-Score'] = student.zScore !== undefined && Math.abs(student.zScore) < 0.0001 
-                                ? -20 
-                                : (student.zScore || 0);
+        student.zScore !== undefined && student.zScore.toFixed(4) === '0.0000'
+          ? '-20.00'
+          : student.zScore.toFixed(2)
       }
       
       return studentRow;
