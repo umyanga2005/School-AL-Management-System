@@ -216,10 +216,9 @@ const AcademicRecords = ({ student, selectedTerm, reportType, onClose }) => {
     doc.text(`Year: ${selectedTerm.exam_year}`, margin, y);
     doc.text(`Term: ${termRoman}`, pageWidth - margin, y, { align: 'right' });
     y += 16;
-    doc.text(`Student Name: ${student.name}`, margin, y);
+    doc.text(`Student Name: ${student.name_with_initials}`, margin, y);
     y += 16;
     doc.text(`Class: ${student.current_class}`, margin, y);
-    doc.text(`Index No: ${student.index_number}`, pageWidth - margin, y, { align: 'right' });
     y += 24;
 
     // --- Table 1: Subjects & Marks ---
@@ -350,7 +349,7 @@ const AcademicRecords = ({ student, selectedTerm, reportType, onClose }) => {
     doc.setFontSize(8).setFont('helvetica', 'italic');
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth - margin, pageHeight - 20, { align: 'right' });
 
-    const fileName = `${student.index_number}_${selectedTerm.term_name}_${selectedTerm.exam_year}.pdf`;
+    const fileName = `${student.name_with_initials}_${selectedTerm.term_name}_${selectedTerm.exam_year}.pdf`;
     doc.save(fileName);
 
     if (typeof onClose === 'function') onClose();

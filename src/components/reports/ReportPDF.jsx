@@ -17,8 +17,19 @@ export const ReportPDF = {
       doc.setFont('helvetica', 'bold');
       const schoolName = 'R/Sivali Central College - Arts Section';
       const termInfo = currentTerm
-        ? `${currentTerm.term_name} Examination (${filters.className || 'All Classes'}) ${currentTerm.exam_year}`
+        ? (
+            filters.reportType === 'class'
+              // Class-wise header: First Term Examination (12A1) 2025
+              ? `${currentTerm.term_name} Examination (${filters.className || 'All Classes'}) ${currentTerm.exam_year}`
+              // Full-term header: First Term Examination (Grade 12 Z-Score Ranked Full Term Report.) 2025
+              : `${currentTerm.term_name} Examination (` +
+                `${filters.section || filters.className || 'Grade'} ` +
+                `${filters.rankingMethod === 'zscore' ? 'Z-Score ' :
+                   filters.rankingMethod === 'average' ? 'Average ' : 'TotalMarks '}Ranked Full Term Report) ` +
+                `${currentTerm.exam_year}`
+          )
         : 'Term Report';
+
 
       doc.text(schoolName, pageWidth / 2, currentY + 5, { align: 'center' });
       doc.text(termInfo, pageWidth / 2, currentY + 12, { align: 'center' });
@@ -366,11 +377,20 @@ export const ReportPDF = {
       doc.text(`Total Students: ${students.length}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
     }
 
+    // ---- UPDATED FILE NAME LOGIC ----
+    const termName = currentTerm ? currentTerm.term_name : 'Term';
+    const year = currentTerm ? currentTerm.exam_year : new Date().getFullYear();
+
     const fileName = filters.reportType === 'class'
-      ? `Class_${filters.className || 'Report'}_Mark_Sheet.pdf`
-      : 'Full_Term_Mark_Sheet.pdf';
+      // Class Report  ->  Grade12A1 First Term 2025
+      ? `${filters.className} ${termName} ${year}.pdf`
+      // Full Term Report -> Grade12 First Term 2025 Z-Score Full Term Report
+      : `${filters.section || filters.className || 'Grade'} ${termName} ${year} ` +
+        `${filters.rankingMethod === 'zscore' ? 'Z-Score ' :
+           filters.rankingMethod === 'average' ? 'Average ' : 'TotalMarks '}Full Term Report.pdf`;
 
     doc.save(fileName);
+
   }
 };
 
