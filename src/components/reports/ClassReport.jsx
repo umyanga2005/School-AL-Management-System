@@ -4,6 +4,8 @@ import { termApi, classApi, reportApi, savedReportsApi, termAttendanceApi } from
 import { ReportPDF } from './ReportPDF';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { ReportPDFTop10 } from './ReportPDFTop10';
+import { ReportPDFMarksFilter } from './ReportPDFMarksFilter';
 
 // A simple loading spinner component
 const Spinner = () => (
@@ -61,6 +63,18 @@ const ClassReport = () => {
     includeCommon: true,
     rankingMethod: 'totalMarks',
     section: ''
+  });
+
+  const [filterPopupOpen, setFilterPopupOpen] = useState(false);
+
+  const [marksFilter, setMarksFilter] = useState({
+    section: '',
+    className: '',         
+    reportType: 'class',
+    academicYear: new Date().getFullYear(),
+    termId: '',
+    minMarks: '',
+    maxMarks: ''
   });
 
   // Define the desired subject order
@@ -380,6 +394,21 @@ useEffect(() => {
     
     return rankedStudents;
   };
+
+  // === NEW: export top10 students for Z-Score/Average Full Term report ===
+  const handleExportTop10 = () => {
+    if (filteredReportData.length === 0) return;
+    const top10 = [...filteredReportData]
+      .sort((a,b) => a.rank - b.rank)
+      .slice(0,10);
+
+    ReportPDFTop10.generatePDF({
+      students: top10,
+      currentTerm,
+      filters
+    });
+  };
+
 
   // Function to handle blank mark sheet download
   const handleExportBlankMarksheet = () => {
@@ -763,10 +792,315 @@ useEffect(() => {
     }
   };
 
+  const handleGenerateMarksFilterPDF = async () => {
+    const min = parseFloat(marksFilter.minMarks);
+    const max = parseFloat(marksFilter.maxMarks);
+
+    if (!marksFilter.termId || isNaN(min) || isNaN(max)) {
+      alert('Please select term and valid mark range.');
+      return;
+    }
+
+    // Fetch data like you do in handleGenerateReport
+    const reportFilters = {
+      term_id: marksFilter.termId,
+      include_common: true,
+      include_all_students: true
+    };
+
+    // Add class filter when report type is 'class'
+    if (marksFilter.reportType === 'class' && marksFilter.className) {
+      reportFilters.class_name = marksFilter.className;
+    }
+
+    const reportResponse = await reportApi.getTermReport(reportFilters);
+    if (!reportResponse.success) return;
+
+    const students = reportResponse.data.students;
+    const subjects = reportResponse.data.subjects;
+    const currentTermData = reportResponse.data.term;
+
+    // Group by subject and filter marks
+    const groupedData = subjects.map(subject => {
+      const filtered = students
+        .map(stu => {
+          const markObj = stu.marks.find(m => m.subject_id === subject.id);
+          const mark = markObj?.marks;
+          return mark !== null && mark !== undefined && mark !== '' && mark >= min && mark <= max
+            ? { name: stu.name, mark }
+            : null;
+        })
+        .filter(Boolean);
+      return { subject, students: filtered };
+    }).filter(g => g.students.length > 0);
+
+    if (groupedData.length === 0) {
+      alert('No students found in this range.');
+      return;
+    }
+
+    ReportPDFMarksFilter.generatePDF({
+      groupedData,
+      filters: marksFilter,
+      currentTerm: currentTermData
+    });
+
+    setFilterPopupOpen(false);
+  };
+
+
   return (
-    <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">Student Mark Sheets</h2>
-      
+    <div className="max-w-7xl mx-auto p-6 bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen">
+      {/* Header Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <h2 className="text-3xl font-bold text-gray-900">
+          Student Mark Sheets
+        </h2>
+        <button
+          onClick={() => setFilterPopupOpen(true)}
+          className="bg-purple-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-purple-700 w-full sm:w-auto"
+        >
+          Filter Marks
+        </button>
+      </div>
+
+      {filterPopupOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-white dark:bg-gray-800 rounded-t-2xl border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Filter Marks
+                </h3>
+                <button
+                  onClick={() => setFilterPopupOpen(false)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Section Select */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Section
+                </label>
+                <div className="relative">
+                  <select
+                    value={marksFilter.section}
+                    onChange={(e) => setMarksFilter({ ...marksFilter, section: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl 
+                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                            focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                            transition-all duration-200 appearance-none cursor-pointer
+                            hover:border-gray-400 dark:hover:border-gray-500"
+                  >
+                    <option value="">All Sections</option>
+                    {sections.map(sec => (
+                      <option key={sec} value={sec}>{sec}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Report Type */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Report Type
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: 'class', label: 'Class Report', icon: '📊' },
+                    { value: 'term', label: 'Full Term Report', icon: '📈' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setMarksFilter({ ...marksFilter, reportType: option.value })}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                        marksFilter.reportType === option.value
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                          : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500'
+                      }`}
+                    >
+                      <span className="text-lg">{option.icon}</span>
+                      <span className="font-medium text-sm">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Class Selection - Only show when report type is 'class' */}
+              {marksFilter.reportType === 'class' && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Class
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={marksFilter.className}
+                      onChange={(e) => setMarksFilter({ ...marksFilter, className: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl 
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                              transition-all duration-200 appearance-none cursor-pointer
+                              hover:border-gray-400 dark:hover:border-gray-500"
+                    >
+                      <option value="">Select Class</option>
+                      {classes
+                        .filter(c => {
+                          if (!marksFilter.section) return true;
+                          const gradeNumber = marksFilter.section.replace('Grade ', '');
+                          return c.class_name.startsWith(gradeNumber);
+                        })
+                        .map(c => (
+                          <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
+                        ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Academic Year - Read Only */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Academic Year
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={marksFilter.academicYear}
+                    readOnly
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl 
+                            bg-gray-50 dark:bg-gray-600 text-gray-500 dark:text-gray-400
+                            cursor-not-allowed"
+                  />
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Term */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Term
+                </label>
+                <div className="relative">
+                  <select
+                    value={marksFilter.termId}
+                    onChange={(e) => setMarksFilter({ ...marksFilter, termId: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl 
+                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                            focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                            transition-all duration-200 appearance-none cursor-pointer
+                            hover:border-gray-400 dark:hover:border-gray-500"
+                  >
+                    <option value="">Select Term</option>
+                    {terms
+                      .filter(t => t.exam_year == marksFilter.academicYear)
+                      .map(t => (
+                        <option key={t.id} value={t.id}>{t.term_name}</option>
+                      ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Marks Range */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Marks Range
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      placeholder="Minimum"
+                      value={marksFilter.minMarks}
+                      onChange={(e) => setMarksFilter({ ...marksFilter, minMarks: e.target.value })}
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 dark:border-gray-600 rounded-xl 
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                              transition-all duration-200 placeholder-gray-500 dark:placeholder-gray-400
+                              hover:border-gray-400 dark:hover:border-gray-500"
+                    />
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      <span className="text-gray-400 text-sm">📊</span>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      placeholder="Maximum"
+                      value={marksFilter.maxMarks}
+                      onChange={(e) => setMarksFilter({ ...marksFilter, maxMarks: e.target.value })}
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 dark:border-gray-600 rounded-xl 
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                              transition-all duration-200 placeholder-gray-500 dark:placeholder-gray-400
+                              hover:border-gray-400 dark:hover:border-gray-500"
+                    />
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      <span className="text-gray-400 text-sm">📈</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 rounded-b-2xl border-t border-gray-200 dark:border-gray-700 px-6 py-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  onClick={() => setFilterPopupOpen(false)}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl border border-gray-300 dark:border-gray-600 
+                          text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700
+                          hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200
+                          font-medium focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGenerateMarksFilterPDF}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl 
+                          bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800
+                          text-white font-medium shadow-lg hover:shadow-xl
+                          transform hover:scale-105 transition-all duration-200
+                          focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                          flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
+                  Generate PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* --- Filters Section --- */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 items-end">
@@ -954,6 +1288,18 @@ useEffect(() => {
               </p>
             </div>
             <div className="flex space-x-2 flex-wrap gap-2">
+            {/* --- NEW: Top10 Z/Average Export --- */}
+            <button
+              onClick={handleExportTop10}
+              disabled={
+                loading ||
+                filters.reportType !== 'term' ||
+                !['zscore','average'].includes(filters.rankingMethod)
+              }
+              className="bg-purple-600 text-white px-4 py-2 text-sm rounded-md hover:bg-purple-700 disabled:bg-gray-300"
+            >
+              Download Top 10 (Z/A)
+            </button>
               <button 
                 onClick={handleExportExcel} 
                 className="bg-blue-600 text-white px-4 py-2 text-sm rounded-md hover:bg-blue-700"
